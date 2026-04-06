@@ -19,18 +19,18 @@ from src.logging_utils import (
 )
 
 
-VERSIONED_BASE_PREFIX = "/api/v2"
+VERSIONED_BASE_PREFIX = "/api/v1"
 APP_TITLE = "Driver Behavior Score API"
-APP_SUMMARY = "Score vehicles, evaluate violations, and manage dashboard operations."
+APP_SUMMARY = "Vehicle scoring and dashboard APIs for DBS."
 APP_DESCRIPTION = """
 Driver Behavior Score is a FastAPI service for vehicle risk scoring and dashboard workflows.
 
 It provides:
-- score, violation, and vehicle APIs under `/api/v2`
+- score, violation, and vehicle APIs under `/api/v1`
 - dashboard lookup APIs for authenticated users
 - auth endpoints for dashboard users and API key management
 
-The service also exposes request IDs and structured logs to simplify debugging.
+The service also exposes request IDs, structured logs, and a health endpoint for operational checks.
 """
 
 
@@ -118,6 +118,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     return response
 
 
-@app.get("/")
-async def root():
-    return {"status": "ok"}
+@app.get("/health", summary="Health Check", tags=["health"])
+async def health_check():
+    return {"status": "healthy"}
