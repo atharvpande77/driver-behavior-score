@@ -32,12 +32,11 @@ class DashboardService:
     
     async def vehicle_lookup(self, vehicle_number: str):
         log_event(self.logger, "INFO", "dashboard.lookup.start", vehicle_number=vehicle_number)
+        
         try:
-            await self.challan_svc.refresh_challans_if_stale(vehicle_number)
-            
             vehicle, challans = await asyncio.gather(
                 self.vehicle_svc.get_vehicle(vehicle_number),
-                self.challan_svc.list_active_challans(vehicle_number),
+                self.challan_svc.get_active_challans(vehicle_number),
             )
             
             dbs = await self.score_svc.get_dbs_with_premium(vehicle_number, vehicle)

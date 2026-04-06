@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi import Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.score.router import router as score_router
@@ -43,6 +44,15 @@ app = FastAPI(
     summary=APP_SUMMARY,
     description=APP_DESCRIPTION,
     version="0.1.0",
+)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
