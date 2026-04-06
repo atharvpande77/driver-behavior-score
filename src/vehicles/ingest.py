@@ -28,31 +28,14 @@ class RCIngest:
                 }
             )
             response.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            if 500 <= e.response.status_code < 600:
-                self.logger.exception(
-                    "event=vehicle.fetch.vendor_5xx vehicle_number=%s source_id=%s status_code=%s error=%s",
-                    vehicle_number,
-                    self.source_id,
-                    e.response.status_code,
-                    str(e),
-                )
-                return None
+        except Exception as e:
             self.logger.exception(
                 "event=vehicle.fetch.failed vehicle_number=%s source_id=%s error=%s",
                 vehicle_number,
                 self.source_id,
                 str(e),
             )
-            raise
-        except httpx.HTTPError as e:
-            self.logger.exception(
-                "event=vehicle.fetch.failed vehicle_number=%s source_id=%s error=%s",
-                vehicle_number,
-                self.source_id,
-                str(e),
-            )
-            raise
+            return None
         log_event(
             self.logger,
             "INFO",
