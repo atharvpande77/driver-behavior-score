@@ -1,5 +1,4 @@
 from typing import Optional
-import secrets
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,7 +12,7 @@ class AppSettings(BaseSettings):
     DATABASE_URL: Optional[str] = None
     SUREPASS_BASE_URL: str
     SUREPASS_API_KEY: str
-    JWT_SECRET: str = secrets.token_urlsafe(48)
+    JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_EXPIRY_SECONDS: int = 900
     JWT_REFRESH_EXPIRY_SECONDS: int = 604800
