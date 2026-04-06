@@ -7,6 +7,7 @@ from datetime import datetime
 from src.database import BaseDBRepository
 from src.models import (
     ChallansFetchLog,
+    ChallansOffenseDetail,
     Challan,
 )
 
@@ -50,10 +51,55 @@ class ChallanRepository(BaseDBRepository):
     async def insert(self, challans: list[dict]):
         if not challans:
             return
-        await self.db.execute(
+
+        offense_name_rows: list[dict] = []
+        challan_rows: list[dict] = []
+
+        for challan in challans:
+            offense_names = challan.pop("offense_names", []) or []
+            challan_rows.append(challan)
+            offense_name_rows.append(
+                {
+                    "challan_key": (challan["challan_number"], challan["source_id"]),
+                    "offense_names": offense_names,
+                }
+            )
+
+        result = await self.db.execute(
             insert(Challan)
-                .values(challans)
+                .values(challan_rows)
+                .returning(
+                    Challan.id,
+                    Challan.challan_number,
+                    Challan.source_id,
+                )
         )
+
+        inserted_rows = result.mappings().all()
+        challan_id_map = {
+            (row["challan_number"], row["source_id"]): row["id"]
+            for row in inserted_rows
+        }
+
+        offense_rows: list[dict] = []
+        for row in offense_name_rows:
+            challan_id = challan_id_map.get(row["challan_key"])
+            if challan_id is None:
+                continue
+
+            for offense_name in row["offense_names"]:
+                offense_rows.append(
+                    {
+                        "challan_id": challan_id,
+                        "offense_name": offense_name,
+                    }
+                )
+
+        if offense_rows:
+            await self.db.execute(
+                insert(ChallansOffenseDetail)
+                    .values(offense_rows)
+            )
         
     
     async def soft_delete(self, *, vehicle_number: str, to_delete: set[tuple[str, str]]):

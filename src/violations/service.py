@@ -209,6 +209,7 @@ class ChallanService:
             "vehicle_number": vehicle_number,
             "challan_number": challan.challan_number,
             "source_id": challan.source_id,
+            "offense_names": offenses,
             "offense_details": none_if_blank(challan.offense_details),
             "thz_category": none_if_blank(thz_category.category),
             "thz_description": none_if_blank(thz_category.description),
