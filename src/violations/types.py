@@ -42,15 +42,15 @@ class THZCategoryDTO:
 
 @dataclass(kw_only=True)
 class ChallanDTO:
-    challan_details: str
-    challan_date: datetime
+    challan_number: str
+    challan_datetime: datetime
     fine_amount: int | None
-    paid_status: bool
     severity: str
-    thz_category: THZCategoryDTO | None
     challan_place: str | None
     offense_details: str | None
-    challan_datetime: datetime
+    thz_category_name: str | None
+    thz_category_description: str | None
+    thz_category_deduction: int | None
     thz_deduction: int
     challan_status: str | None
 

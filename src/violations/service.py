@@ -11,9 +11,7 @@ from src.violations.constants import (
 )
 from src.violations.types import NormalizedChallan, THZCategory, THZCategoryMatch
 from src.violations.utils import get_severity_from_thz_category, none_if_blank, build_classification_corpus, normalize_offense_text, needs_fetch
-from src.violations.types import ChallanDTO, THZCategoryDTO
-
-from src.utils import get_challan_paid_status
+from src.violations.types import ChallanDTO
 from src.models import Challan
 from src.logging_utils import get_logger, log_event
 
@@ -50,24 +48,16 @@ class ChallanService:
         
         
     def _to_challan_dto(self, challan) -> ChallanDTO:
-        thz_category = None
-        if challan.thz_category and challan.thz_description and challan.thz_deduction is not None:
-            thz_category = THZCategoryDTO(
-                name=challan.thz_category,
-                description=challan.thz_description,
-                deduction=challan.thz_deduction,
-            )
-
         return ChallanDTO(
-            challan_details=challan.challan_number,
-            challan_date=challan.challan_datetime,
+            challan_number=challan.challan_number,
+            challan_datetime=challan.challan_datetime,
             fine_amount=challan.fine_amount,
-            paid_status=get_challan_paid_status(getattr(challan, "challan_status", None)),
             severity=challan.severity,
-            thz_category=thz_category,
             challan_place=challan.challan_place,
             offense_details=challan.offense_details,
-            challan_datetime=challan.challan_datetime,
+            thz_category_name=challan.thz_category,
+            thz_category_description=challan.thz_description,
+            thz_category_deduction=challan.thz_deduction,
             thz_deduction=challan.thz_deduction,
             challan_status=challan.challan_status,
         )

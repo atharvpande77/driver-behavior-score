@@ -34,25 +34,24 @@ class THZCategoryResponse(BaseModel):
 class ChallanListResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    challan_details: str = Field(validation_alias="challan_number")
-    challan_date: datetime = Field(validation_alias="challan_datetime")
+    challan_number: str
+    challan_datetime: datetime
     fine_amount: int | None
     paid_status: bool = False
     severity: str
-    thz_category: THZCategoryResponse | None = Field(
-        default=None,
-        exclude=True,
-        validation_alias="__thz_category_ignored__",
-    )
-    thz_category_name: str | None = Field(validation_alias="thz_category", exclude=True)
-    thz_category_description: str | None = Field(validation_alias="thz_description", exclude=True)
-    thz_category_deduction: int | None = Field(validation_alias="thz_deduction", exclude=True)
+    thz_category_name: str | None = None
+    thz_category_description: str | None = None
+    thz_category_deduction: int | None = None
+    challan_place: str | None = None
+    offense_details: str | None = None
     challan_status: str | None = Field(default=None, exclude=True)
 
     @model_serializer(mode="wrap")
     def add_derived_fields(self, handler):
         data = handler(self)
         data["paid_status"] = get_challan_paid_status(self.challan_status)
+        data["challan_details"] = data.pop("challan_number", None)
+        data["challan_date"] = data.pop("challan_datetime", None)
         if (
             self.thz_category_name is None
             or self.thz_category_description is None

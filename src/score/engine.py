@@ -97,7 +97,10 @@ class PremiumEngine:
         """
 
         # 1. Ignore EVs
-        if fuel_type.upper() == "ELECTRIC":
+        if not fuel_type or fuel_type.upper() == "ELECTRIC":
+            return None
+
+        if not isinstance(vehicle_category, str) or not vehicle_category:
             return None
 
         vehicle_category = vehicle_category.upper()
