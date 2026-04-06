@@ -53,7 +53,7 @@ class NormalizedRC:
 
 @dataclass(kw_only=True)
 class VehicleDTO:
-    vehicle_number: str | None
+    vehicle_number: str
     state_code: str | None
     category: str | None
     category_description: str | None
