@@ -34,35 +34,43 @@ class DashboardService:
         log_event(self.logger, "INFO", "dashboard.lookup.start", vehicle_number=vehicle_number)
         
         try:
-            vehicle, challans = await asyncio.gather(
-                self.vehicle_svc.get_vehicle(vehicle_number),
-                self.challan_svc.get_active_challans(vehicle_number),
-            )
-            
-            dbs = await self.score_svc.get_dbs_with_premium(vehicle_number, vehicle)
-            
-            fresh_as_of = await self.challan_svc._get_last_challan_fetch_timestamp(vehicle_number)
-            
-            queried_at = datetime.now()
-            
-            response = VehicleLookupResponse(
-                vehicle=vehicle,
-                violations=challans,
-                dbs=dbs,
-                fresh_as_of=fresh_as_of,
-                queried_at=queried_at,
-            )
+            response = await self._resolve_vehicle_lookup(vehicle_number)
             log_event(
                 self.logger,
                 "INFO",
                 "dashboard.lookup.end",
                 vehicle_number=vehicle_number,
-                violations=len(challans),
+                violations=len(response.violations),
             )
             return response
         except Exception:
             self.logger.exception("event=dashboard.lookup.error vehicle_number=%s", vehicle_number)
             raise
+
+
+    async def _resolve_vehicle_lookup(self, vehicle_number: str) -> VehicleLookupResponse:
+        sync_happened: bool = await self.challan_svc.refresh_challans_if_stale(vehicle_number)
+
+        vehicle, challans = await asyncio.gather(
+            self.vehicle_svc.get_vehicle(vehicle_number),
+            self.challan_svc.list_active_challans(vehicle_number),
+        )
+
+        dbs = await self.score_svc.compute_dbs_by_challans_and_vehicle(
+            sync_happened=sync_happened,
+            vehicle=vehicle,
+            challans=challans,
+        )
+
+        fresh_as_of = await self.challan_svc.get_last_challan_fetch_timestamp(vehicle_number)
+
+        return VehicleLookupResponse(
+            vehicle=vehicle,
+            violations=challans,
+            dbs=dbs,
+            fresh_as_of=fresh_as_of,
+            queried_at=datetime.now(),
+        )
         
 
 
@@ -73,18 +81,17 @@ class DashboardService:
     ) -> BatchVehicleLookupItem | None:
         async with semaphore:
             try:
-                vehicle = await self.vehicle_svc.get_vehicle(vehicle_number)
-                dbs = await self.score_svc.get_dbs_with_premium(vehicle_number, vehicle)
+                lookup = await self._resolve_vehicle_lookup(vehicle_number)
             except Exception:
                 logger = self.logger
                 logger.exception("event=dashboard.lookup.batch.item_error vehicle_number=%s", vehicle_number)
                 return None
 
-        dbs_stats = dbs.dbs_stats
+        dbs_stats = lookup.dbs.dbs_stats
         return BatchVehicleLookupItem(
             vehicle_number=vehicle_number,
-            category=vehicle.category,
-            category_description=vehicle.category_description,
+            category=lookup.vehicle.category,
+            category_description=lookup.vehicle.category_description,
             score=dbs_stats.score,
             risk_level=dbs_stats.risk_level,
             premium_modifier_pct=dbs_stats.premium_modifier_pct,

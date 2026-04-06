@@ -1,13 +1,15 @@
 from datetime import date, timedelta
 
-from src.models import DBSRecord, Vehicle
 from src.score.repository import ScoreRepository
 from src.score.engine import ScoreEngine, PremiumEngine
 from src.score.types import DBSWithPremium
 
 from src.violations.service import ChallanService
 from src.violations.constants import SCORING_WINDOW_DAYS
+from src.violations.types import ChallanDTO
 from src.vehicles.service import VehicleService
+from src.vehicles.types import VehicleDTO
+from src.models import DBSRecord, Vehicle
 from src.logging_utils import get_logger, log_event
 
 
@@ -106,4 +108,63 @@ class ScoreService:
         return await self.get_dbs_with_premium(
             vehicle_number,
             vehicle
+        )
+        
+        
+    async def _compute_and_store(
+        self,
+        vehicle_number: str,
+        challans: list[ChallanDTO],
+    ):
+        window_end = date.today()
+        window_start = window_end - timedelta(days=SCORING_WINDOW_DAYS)
+        
+        dbs_stats = self.engine.compute(
+            vehicle_number,
+            challans,
+            window_start=window_start,
+            window_end=window_end
+        )
+        
+        inserted_record = await self.repo.insert(dbs_stats)
+        await self.repo.commit()
+        return inserted_record
+        
+        
+    async def _get_or_compute(
+        self,
+        sync_happened: bool,
+        vehicle_number: str,
+        challans: list[ChallanDTO]
+    ):
+        if sync_happened:
+            return await self._compute_and_store(vehicle_number, challans)
+        
+        latest = await self.repo.get_latest(vehicle_number)
+        if not latest:
+            return await self._compute_and_store(vehicle_number, challans)
+        return latest
+        
+
+    # Use this
+    async def compute_dbs_by_challans_and_vehicle(
+        self,
+        *,
+        sync_happened: bool,
+        vehicle: VehicleDTO,
+        challans: list[ChallanDTO],
+    ):
+        record = await self._get_or_compute(sync_happened, vehicle.vehicle_number, challans)
+        
+        base_premium, adjusted_premium = PremiumEngine.compute(
+            record.premium_modifier_pct,
+            vehicle.category,
+            vehicle.cubic_capacity,
+            vehicle.fuel_type,
+        )
+
+        return DBSWithPremium(
+            dbs_stats=record,
+            base_premium=base_premium,
+            adjusted_premium=adjusted_premium
         )

@@ -33,6 +33,28 @@ class THZCategoryMatch:
     deduction: int
 
 
+@dataclass(kw_only=True)
+class THZCategoryDTO:
+    name: str
+    description: str
+    deduction: int
+
+
+@dataclass(kw_only=True)
+class ChallanDTO:
+    challan_details: str
+    challan_date: datetime
+    fine_amount: int | None
+    paid_status: bool
+    severity: str
+    thz_category: THZCategoryDTO | None
+    challan_place: str | None
+    offense_details: str | None
+    challan_datetime: datetime
+    thz_deduction: int
+    challan_status: str | None
+
+
 class THZCategory(str, Enum):
     THZ_1 = "THZ 1"
     THZ_2 = "THZ 2"

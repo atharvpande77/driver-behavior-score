@@ -11,7 +11,9 @@ from src.violations.constants import (
 )
 from src.violations.types import NormalizedChallan, THZCategory, THZCategoryMatch
 from src.violations.utils import get_severity_from_thz_category, none_if_blank, build_classification_corpus, normalize_offense_text, needs_fetch
+from src.violations.types import ChallanDTO, THZCategoryDTO
 
+from src.utils import get_challan_paid_status
 from src.models import Challan
 from src.logging_utils import get_logger, log_event
 
@@ -28,7 +30,7 @@ class ChallanService:
         self.logger = get_logger(__name__)
         
         
-    async def _get_last_challan_fetch_timestamp(self, vehicle_number: str):
+    async def get_last_challan_fetch_timestamp(self, vehicle_number: str):
         source_id = self.ingest.source_id
         return await self.repo.get_last_fetch(vehicle_number, source_id)
         
@@ -36,7 +38,7 @@ class ChallanService:
     async def refresh_challans_if_stale(self, vehicle_number: str) -> bool:
         """Refresh challans for the given vehicle number if the source data is stale. Returns True if anything changed."""
         
-        last_fetch_timestamp = await self._get_last_challan_fetch_timestamp(vehicle_number)
+        last_fetch_timestamp = await self.get_last_challan_fetch_timestamp(vehicle_number)
         
         if last_fetch_timestamp and not needs_fetch(last_fetch_timestamp, TTL_HOURS):
             log_event(self.logger, "INFO", "challan.refresh.skip_fresh_cache", vehicle_number=vehicle_number)
@@ -47,18 +49,47 @@ class ChallanService:
         return diff
         
         
-    async def list_active_challans(self, vehicle_number: str) -> list[Challan]:
+    def _to_challan_dto(self, challan) -> ChallanDTO:
+        thz_category = None
+        if challan.thz_category and challan.thz_description and challan.thz_deduction is not None:
+            thz_category = THZCategoryDTO(
+                name=challan.thz_category,
+                description=challan.thz_description,
+                deduction=challan.thz_deduction,
+            )
+
+        return ChallanDTO(
+            challan_details=challan.challan_number,
+            challan_date=challan.challan_datetime,
+            fine_amount=challan.fine_amount,
+            paid_status=get_challan_paid_status(getattr(challan, "challan_status", None)),
+            severity=challan.severity,
+            thz_category=thz_category,
+            challan_place=challan.challan_place,
+            offense_details=challan.offense_details,
+            challan_datetime=challan.challan_datetime,
+            thz_deduction=challan.thz_deduction,
+            challan_status=challan.challan_status,
+        )
+
+
+    async def list_active_challans(self, vehicle_number: str) -> list[ChallanDTO]:
         """Return all active challans for the given vehicle number without triggering a fetch."""
         
         challans = await self.repo.get_all_active(vehicle_number)
-        return challans
+        if not challans:
+            return []
+        return [self._to_challan_dto(challan) for challan in challans]
     
     
-    async def get_active_challans(self, vehicle_number: str):
+    async def get_active_challans(self, vehicle_number: str) -> list[ChallanDTO]:
         """Refresh challans if stale, then return the active challans for the vehicle."""
         
         await self.refresh_challans_if_stale(vehicle_number)
-        return await self.repo.get_all_active(vehicle_number)
+        challans = await self.repo.get_all_active(vehicle_number)
+        if not challans:
+            return []
+        return [self._to_challan_dto(challan) for challan in challans]
         
     
     async def _refresh_challans_from_source(self, vehicle_number: str) -> bool:

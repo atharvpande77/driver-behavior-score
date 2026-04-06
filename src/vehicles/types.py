@@ -49,3 +49,20 @@ class NormalizedRC:
     owner_number: int | None = None
     rc_status: str | None = None
     rto_code: str | None = None
+
+
+@dataclass(kw_only=True)
+class VehicleDTO:
+    vehicle_number: str
+    state_code: str | None
+    category: str | None
+    category_description: str | None
+    maker_description: str | None
+    maker_model: str | None
+    body_type: str | None
+    fuel_type: str | None
+    color: str | None
+    manufacturing_date: str | None
+    cubic_capacity: float | None
+    owner_name: str | None
+    rto_code: str | None
