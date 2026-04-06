@@ -14,6 +14,24 @@ class VehicleService:
         self.repo = repo
         self.ingest = ingest
         
+
+    def _empty_vehicle_details(self) -> VehicleDTO:
+        return VehicleDTO(
+            vehicle_number=None,
+            state_code=None,
+            category=None,
+            category_description=None,
+            maker_description=None,
+            maker_model=None,
+            body_type=None,
+            fuel_type=None,
+            color=None,
+            manufacturing_date=None,
+            cubic_capacity=None,
+            owner_name=None,
+            rto_code=None,
+        )
+        
     
     def _to_vehicle_details(self, vehicle: Vehicle) -> VehicleDTO:
         return VehicleDTO(
@@ -35,6 +53,8 @@ class VehicleService:
 
     async def _fetch_and_store(self, vehicle_number: str) -> VehicleDTO:
         vehicle_rc_data = await self.ingest.fetch(vehicle_number)
+        if vehicle_rc_data is None:
+            return self._empty_vehicle_details()
         inserted_vehicle = await self.repo.insert(vehicle_rc_data)
         await self.repo.commit()
         return self._to_vehicle_details(inserted_vehicle)
