@@ -11,9 +11,9 @@ FastAPI backend for scoring vehicles, tracking violations, and supporting dashbo
 
 ## API Layout
 
-- `/api/v2/score`
-- `/api/v2/violations`
-- `/api/v2/vehicles`
+- `/api/v1/score`
+- `/api/v1/violations`
+- `/api/v1/vehicles`
 - `/auth/*`
 - `/dashboard/*`
 
