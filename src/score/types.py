@@ -2,9 +2,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, date
 from enum import Enum
 
-from src.models import DBSRecord
-
-
 class RiskLevel(str, Enum):
     SEVERE = "SEVERE"
     HIGH = "HIGH"
@@ -37,6 +34,6 @@ class DBSStats:
     
 @dataclass
 class DBSWithPremium:
-    dbs_stats:        DBSRecord
+    dbs_stats:        DBSStats
     base_premium:     int | None
     adjusted_premium: int | None

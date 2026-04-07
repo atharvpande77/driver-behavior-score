@@ -56,10 +56,28 @@ class APIKeyRepository(BaseDBRepository):
         )
         return list(result.scalars().all())
 
-    async def insert(self, api_key: APIKey) -> APIKey:
-        self.db.add(api_key)
-        await self.flush()
-        return api_key
+    async def insert(
+        self,
+        created_by: uuid.UUID,
+        name: str,
+        key_prefix: str,
+        key_hash: str,
+        is_active: bool,
+        last_used_at: datetime | None
+    ) -> APIKey:
+        result = await self.db.execute(
+            insert(APIKey)
+            .values(
+                created_by=created_by,
+                name=name,
+                key_prefix=key_prefix,
+                key_hash=key_hash,
+                is_active=is_active,
+                last_used_at=last_used_at,
+            )
+            .returning(APIKey)
+        )
+        return result.scalar_one()
 
     async def revoke(self, api_key: APIKey) -> None:
         api_key.is_active = False

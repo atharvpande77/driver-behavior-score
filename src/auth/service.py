@@ -179,14 +179,24 @@ class APIKeyService:
     async def create_key(self, user_id: uuid.UUID, name: str) -> tuple[str, APIKey]:
         log_event(self.logger, "INFO", "auth.api_key.create.attempt", user_id=user_id)
         raw_key = f"dbs_sk_{secrets.token_urlsafe(32)}"
-        api_key = APIKey(
+        
+        api_key = await self.repo.insert(
             created_by=user_id,
             name=name.strip(),
             key_prefix=raw_key[:8],
             key_hash=hash_api_key(raw_key),
-            last_used_at=None,
+            is_active=True,
+            last_used_at=None
         )
-        await self.repo.insert(api_key)
+        
+        # api_key = APIKey(
+        #     created_by=user_id,
+        #     name=name.strip(),
+        #     key_prefix=raw_key[:8],
+        #     key_hash=hash_api_key(raw_key),
+        #     last_used_at=None
+        # )
+        # await self.repo.insert(api_key)
         await self.repo.commit()
         log_event(
             self.logger,
