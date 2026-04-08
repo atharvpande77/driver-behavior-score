@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 from src.score.repository import ScoreRepository
 from src.score.engine import ScoreEngine, PremiumEngine
-from src.score.types import DBSWithPremium
+from src.score.types import DBSWithPremium, DBSStats, RiskLevel, ViolationCounts
 
 from src.violations.service import ChallanService
 from src.violations.constants import SCORING_WINDOW_DAYS
@@ -27,6 +27,25 @@ class ScoreService:
         self.challan_svc = challan_svc
         self.vehicle_svc = vehicle_svc
         self.logger = get_logger(__name__)
+
+
+    def _to_dbs_stats(self, record: DBSRecord) -> DBSStats:
+        return DBSStats(
+            score=record.score,
+            total_deductions=record.total_deductions,
+            risk_level=RiskLevel(record.risk_level),
+            premium_modifier_pct=record.premium_modifier_pct,
+            vehicle_number=record.vehicle_number,
+            window_start=record.window_start,
+            window_end=record.window_end,
+            last_violation_datetime=record.last_violation_datetime,
+            violation_counts=ViolationCounts(
+                total=record.total_violations,
+                severe=record.severe_violations,
+                moderate=record.moderate_violations,
+                low=record.low_violations,
+            ),
+        )
         
     
     async def compute_and_add_score_record(
@@ -86,7 +105,7 @@ class ScoreService:
         vehicle_number: str,
         vehicle: Vehicle
     ):
-        score_record = await self.get_dbs_record(vehicle_number)
+        score_record = self._to_dbs_stats(await self.get_dbs_record(vehicle_number))
             
         base_premium, dbs_adjusted_premium = PremiumEngine.compute(
             score_record.premium_modifier_pct,
@@ -154,7 +173,9 @@ class ScoreService:
         vehicle: VehicleDTO,
         challans: list[ChallanDTO],
     ):
-        record = await self._get_or_compute(sync_happened, vehicle.vehicle_number, challans)
+        record = self._to_dbs_stats(
+            await self._get_or_compute(sync_happened, vehicle.vehicle_number, challans)
+        )
         
         base_premium, adjusted_premium = PremiumEngine.compute(
             record.premium_modifier_pct,
