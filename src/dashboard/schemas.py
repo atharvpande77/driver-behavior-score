@@ -77,7 +77,7 @@ class VehicleLookupResponse(BaseModel):
     violations: list[ChallanListResponse]
     dbs: DBSWithPremium
     vehicle: VehicleResponse
-    fresh_as_of: datetime
+    fresh_as_of: datetime | None = None
     queried_at: datetime
 
 
