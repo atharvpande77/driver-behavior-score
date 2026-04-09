@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert, update, func, tuple_
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from datetime import date, timedelta
 import uuid
 from datetime import datetime
@@ -66,8 +67,11 @@ class ChallanRepository(BaseDBRepository):
             )
 
         result = await self.db.execute(
-            insert(Challan)
+            pg_insert(Challan)
                 .values(challan_rows)
+                .on_conflict_do_nothing(
+                    index_elements=["challan_number", "source_id"]
+                )
                 .returning(
                     Challan.id,
                     Challan.challan_number,
