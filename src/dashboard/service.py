@@ -95,7 +95,7 @@ class DashboardService:
             score=dbs_stats.score,
             risk_level=dbs_stats.risk_level,
             premium_modifier_pct=dbs_stats.premium_modifier_pct,
-            total_violations=dbs_stats.total_violations,
+            total_violations=dbs_stats.violation_counts.total,
         )
 
 
