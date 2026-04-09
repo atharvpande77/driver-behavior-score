@@ -9,6 +9,7 @@ class VehicleResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     vehicle_number: str
+    owner_name: str | None
     category: str | None
     category_description: str | None
     state_code: str | None

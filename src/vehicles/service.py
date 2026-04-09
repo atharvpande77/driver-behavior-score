@@ -1,7 +1,10 @@
-from src.models import Vehicle
 from src.vehicles.repository import VehicleRepository
 from src.vehicles.ingest import RCIngest
 from src.vehicles.types import VehicleDTO
+from src.vehicles.utils import mask_owner_name
+
+from src.models import Vehicle
+
 
 
 class VehicleService:
@@ -47,7 +50,7 @@ class VehicleService:
             color=vehicle.color,
             manufacturing_date=vehicle.manufacturing_date,
             cubic_capacity=float(vehicle.cubic_capacity) if vehicle.cubic_capacity is not None else None,
-            owner_name=vehicle.owner_name,
+            owner_name=mask_owner_name(vehicle.owner_name),
             rto_code=vehicle.rto_code,
         )
 
