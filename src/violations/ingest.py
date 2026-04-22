@@ -1,6 +1,7 @@
 import httpx
 from datetime import datetime
 from abc import ABC, abstractmethod
+import time
 
 from src.violations.types import NormalizedChallan, NormalizedChallanOffenseDetail
 
@@ -43,6 +44,7 @@ class ChallanIngest:
         
         
     async def fetch(self, vehicle_number: str) -> tuple[str, list[NormalizedChallan]]:
+        start = time.perf_counter()
         try:
             response = await self.client.post(
                 f"{app_settings.SUREPASS_BASE_URL}/rc/rc-related/challan-advanced",
@@ -57,8 +59,10 @@ class ChallanIngest:
         except httpx.HTTPError:
             raise
         
+        duration_ms = (time.perf_counter() - start) * 1000
+        
         challans = response.json().get("data", {}).get("challan_details", [])
-        return self.source_id, [self._map(challan) for challan in challans]
+        return self.source_id, [self._map(challan) for challan in challans], duration_ms
         
         
     def _map(self, raw_data: dict) -> NormalizedChallan:

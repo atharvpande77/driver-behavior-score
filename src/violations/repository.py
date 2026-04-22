@@ -164,12 +164,13 @@ class ChallanRepository(BaseDBRepository):
         )
         
     
-    async def update_fetch_log(self, vehicle_number: str, source_id: str) -> uuid.UUID | None:
+    async def update_fetch_log(self, vehicle_number: str, source_id: str, response_duration_ms: float) -> uuid.UUID | None:
         result = await self.db.execute(
             insert(ChallansFetchLog)
                 .values(
                     vehicle_number=vehicle_number,
-                    source_id=source_id
+                    source_id=source_id,
+                    response_duration_ms=response_duration_ms,
                 ).returning(ChallansFetchLog.id)
         )
         return result.scalar_one_or_none()

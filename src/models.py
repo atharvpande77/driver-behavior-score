@@ -3,6 +3,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Integer,
+    Float,
     Numeric,
     SmallInteger,
     String,
@@ -193,6 +194,8 @@ class ChallansFetchLog(Base):
     source_id: Mapped[str] = mapped_column(String(64))
     
     fetched_at: Mapped[datetime] = mapped_column(TIMESTAMP, init=False, server_default=func.now())
+    
+    response_duration_ms: Mapped[float] = mapped_column(Float)
     
     __table_args__ = (
         Index("ix_challan_fetch_logs_vehicle_fetched", "vehicle_number", "fetched_at"),

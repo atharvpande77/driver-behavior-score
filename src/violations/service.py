@@ -92,7 +92,7 @@ class ChallanService:
         diff: bool = False
         
         try:
-            source_id, fresh_challans = await self.ingest.fetch(vehicle_number)
+            source_id, fresh_challans, response_duration_ms = await self.ingest.fetch(vehicle_number)
         except Exception as e:
             self.logger.exception(
                 "event=challan.refresh.fetch_failed vehicle_number=%s source_id=%s error=%s",
@@ -132,7 +132,8 @@ class ChallanService:
         
         await self.repo.update_fetch_log(
             vehicle_number=vehicle_number,
-            source_id=source_id
+            source_id=source_id,
+            response_duration_ms=response_duration_ms,
         )
         
         await self.repo.commit()
