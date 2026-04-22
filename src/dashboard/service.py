@@ -30,11 +30,11 @@ class DashboardService:
         self.logger = get_logger(__name__)
     
     
-    async def vehicle_lookup(self, vehicle_number: str):
+    async def vehicle_lookup(self, vehicle_number: str, include_rc: bool = True):
         log_event(self.logger, "INFO", "dashboard.lookup.start", vehicle_number=vehicle_number)
         
         try:
-            response = await self._resolve_vehicle_lookup(vehicle_number)
+            response = await self._resolve_vehicle_lookup(vehicle_number, include_rc)
             log_event(
                 self.logger,
                 "INFO",
@@ -48,16 +48,22 @@ class DashboardService:
             raise
 
 
-    async def _resolve_vehicle_lookup(self, vehicle_number: str) -> VehicleLookupResponse:
+    async def _resolve_vehicle_lookup(self, vehicle_number: str, include_rc: bool) -> VehicleLookupResponse:
         sync_happened: bool = await self.challan_svc.refresh_challans_if_stale(vehicle_number)
-
-        vehicle, challans = await asyncio.gather(
-            self.vehicle_svc.get_vehicle(vehicle_number),
-            self.challan_svc.list_active_challans(vehicle_number),
-        )
+        
+        if include_rc:
+            vehicle, challans = await asyncio.gather(
+                self.vehicle_svc.get_vehicle(vehicle_number),
+                self.challan_svc.list_active_challans(vehicle_number),
+            )
+        else:
+            challans = await self.challan_svc.list_active_challans(vehicle_number)
+            vehicle = None
 
         dbs = await self.score_svc.compute_dbs_by_challans_and_vehicle(
+            vehicle_number=vehicle_number,
             sync_happened=sync_happened,
+            include_premium=include_rc,
             vehicle=vehicle,
             challans=challans,
         )
@@ -78,20 +84,21 @@ class DashboardService:
         self,
         vehicle_number: str,
         semaphore: asyncio.Semaphore,
+        include_rc: bool = True,
     ) -> BatchVehicleLookupItem | None:
         async with semaphore:
             try:
-                lookup = await self._resolve_vehicle_lookup(vehicle_number)
+                lookup = await self._resolve_vehicle_lookup(vehicle_number, include_rc)
             except Exception:
                 logger = self.logger
                 logger.exception("event=dashboard.lookup.batch.item_error vehicle_number=%s", vehicle_number)
                 return None
 
-        dbs_stats = lookup.dbs.dbs_stats
+        dbs_stats = lookup.dbs.dbs_stats if include_rc else lookup.dbs
         return BatchVehicleLookupItem(
             vehicle_number=vehicle_number,
-            category=lookup.vehicle.category,
-            category_description=lookup.vehicle.category_description,
+            category=getattr(lookup.vehicle, "category", None),
+            category_description=getattr(lookup.vehicle, "category_description", None),
             score=dbs_stats.score,
             risk_level=dbs_stats.risk_level,
             premium_modifier_pct=dbs_stats.premium_modifier_pct,
@@ -99,11 +106,15 @@ class DashboardService:
         )
 
 
-    async def batch_vehicle_lookup(self, vehicle_numbers: list[str]) -> BatchVehicleLookupResponse:
+    async def batch_vehicle_lookup(
+        self,
+        vehicle_numbers: list[str],
+        include_rc: bool = True,
+    ) -> BatchVehicleLookupResponse:
         log_event(self.logger, "INFO", "dashboard.lookup.batch.start", input_count=len(vehicle_numbers))
         semaphore = asyncio.Semaphore(self.BATCH_LOOKUP_CONCURRENCY)
         results = await asyncio.gather(
-            *(self._batch_lookup_item(vehicle_number, semaphore) for vehicle_number in vehicle_numbers)
+            *(self._batch_lookup_item(vehicle_number, semaphore, include_rc) for vehicle_number in vehicle_numbers)
         )
 
         successful_results = [result for result in results if result is not None]

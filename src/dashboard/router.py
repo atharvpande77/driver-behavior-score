@@ -25,8 +25,9 @@ router = APIRouter(
 async def batch_vehicle_lookup(
     payload: BatchVehicleLookupRequest,
     dashboard_svc: DashboardService = Depends(get_dashboard_service),
+    include_rc: bool = True,
 ):
-    return await dashboard_svc.batch_vehicle_lookup(payload.vehicle_numbers)
+    return await dashboard_svc.batch_vehicle_lookup(payload.vehicle_numbers, include_rc)
 
 
 @router.get(
@@ -36,5 +37,6 @@ async def batch_vehicle_lookup(
 async def vehicle_lookup(
     vehicle_number: ValidateVehicleNumber,
     dashboard_svc: DashboardService = Depends(get_dashboard_service),
+    include_rc: bool = True,
 ):
-    return await dashboard_svc.vehicle_lookup(vehicle_number)
+    return await dashboard_svc.vehicle_lookup(vehicle_number, include_rc)

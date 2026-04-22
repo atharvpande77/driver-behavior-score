@@ -168,14 +168,20 @@ class ScoreService:
     # Use this
     async def compute_dbs_by_challans_and_vehicle(
         self,
+        vehicle_number: str,
         *,
         sync_happened: bool,
-        vehicle: VehicleDTO,
         challans: list[ChallanDTO],
+        include_premium: bool = False,
+        vehicle: VehicleDTO | None = None,
     ):
         record = self._to_dbs_stats(
-            await self._get_or_compute(sync_happened, vehicle.vehicle_number, challans)
+            await self._get_or_compute(sync_happened, vehicle_number, challans)
         )
+        
+        if not include_premium or not vehicle:
+            return record
+
         
         base_premium, adjusted_premium = PremiumEngine.compute(
             record.premium_modifier_pct,

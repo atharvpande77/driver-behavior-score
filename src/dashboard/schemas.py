@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, field_validator
 from datetime import datetime
 
-from src.score.types import DBSWithPremium
+from src.score.types import DBSWithPremium, DBSStats
 from src.utils import get_state_name, get_challan_paid_status, serialize_vehicle_number
 
 
@@ -76,8 +76,8 @@ class VehicleLookupResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     violations: list[ChallanListResponse]
-    dbs: DBSWithPremium
-    vehicle: VehicleResponse
+    dbs: DBSWithPremium | DBSStats
+    vehicle: VehicleResponse | None = None
     fresh_as_of: datetime | None = None
     queried_at: datetime
 
@@ -107,7 +107,7 @@ class BatchVehicleLookupRequest(BaseModel):
 class BatchVehicleLookupItem(BaseModel):
     vehicle_number: str
     category: str | None
-    category_description: str | None
+    category_description: str | None = None
     score: int
     risk_level: str
     premium_modifier_pct: int
