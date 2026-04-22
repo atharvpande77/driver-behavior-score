@@ -1,5 +1,8 @@
 import asyncio
 
+from openai import AsyncOpenAI
+
+from src.config import app_settings
 from src.violations.repository import ChallanRepository
 from src.violations.ingest import ChallanIngest
 from src.violations.constants import (
@@ -17,6 +20,8 @@ from src.logging_utils import get_logger, log_event
 
 
 class ChallanService:
+    OPENAI_CLASSIFICATION_MODEL = "gpt-5.4-nano-2026-03-17"
+
     def __init__(
         self,
         *,
@@ -26,6 +31,7 @@ class ChallanService:
         self.repo = repo
         self.ingest = ingest
         self.logger = get_logger(__name__)
+        self.openai_client = AsyncOpenAI(api_key=app_settings.OPENAI_API_KEY)
         
         
     async def get_last_challan_fetch_timestamp(self, vehicle_number: str):
@@ -100,7 +106,7 @@ class ChallanService:
             (c.source_id, c.challan_number): c for c in fresh_challans
         }
         
-        existing = await self.repo.get_all_active(vehicle_number)
+        existing = await self.repo.get_all_for_sync(vehicle_number, source_id)
         
         existing_map: dict[tuple[str, str], Challan] = {
             (c.source_id, c.challan_number): c for c in existing
@@ -109,19 +115,18 @@ class ChallanService:
         fresh_challans_keys = set(fresh_challans_map.keys())
         existing_keys = set(existing_map.keys())
         
-        to_insert = fresh_challans_keys - existing_keys
         to_delete = existing_keys - fresh_challans_keys
         
         classification_semaphore = asyncio.Semaphore(CLASSIFICATION_CONCURRENCY_LIMIT)
-        challans_to_insert = await asyncio.gather(
+        challan_payloads = await asyncio.gather(
             *(self._build_challan_to_insert(
                 vehicle_number=vehicle_number,
-                challan=fresh_challans_map[(sid, cn)],
+                challan=challan,
                 classification_semaphore=classification_semaphore,
-            ) for sid, cn in to_insert)
+            ) for challan in fresh_challans)
         )
-        
-        await self.repo.insert(challans_to_insert)
+
+        await self.repo.insert(challan_payloads)
         
         await self.repo.soft_delete(vehicle_number=vehicle_number, to_delete=to_delete)
         
@@ -132,18 +137,50 @@ class ChallanService:
         
         await self.repo.commit()
         
-        diff = bool(to_insert or to_delete)
+        diff = bool(to_delete)
+        if not diff:
+            for payload in challan_payloads:
+                key = (payload["source_id"], payload["challan_number"])
+                current = existing_map.get(key)
+                if current is None or self._challan_payload_changed(current, payload):
+                    diff = True
+                    break
         log_event(
             self.logger,
             "INFO",
             "challan.refresh.diff_applied",
             vehicle_number=vehicle_number,
             source_id=source_id,
-            inserts=len(to_insert),
+            upserts=len(challan_payloads),
             deletes=len(to_delete),
             changed=diff,
         )
         return diff
+
+
+    def _challan_payload_changed(self, current: Challan, payload: dict) -> bool:
+        return any(
+            (
+                current.vehicle_number != payload["vehicle_number"],
+                current.offense_details != payload["offense_details"],
+                current.thz_category != payload["thz_category"],
+                current.thz_description != payload["thz_description"],
+                current.thz_deduction != payload["thz_deduction"],
+                current.severity != payload["severity"],
+                current.challan_place != payload["challan_place"],
+                current.challan_datetime != payload["challan_datetime"],
+                current.state_code != payload["state_code"],
+                current.rto != payload["rto"],
+                current.accused_name != payload["accused_name"],
+                current.fine_amount != payload["fine_amount"],
+                current.challan_status != payload["challan_status"],
+                current.court_challan != payload["court_challan"],
+                current.court_name != payload["court_name"],
+                current.upstream_code != payload["upstream_code"],
+                current.active is not True,
+                current.removed_at is not None,
+            )
+        )
     
     
     # Currently sync, so semaphore is useless, but keeping the logic here for when we parallelize classification in the future
@@ -176,8 +213,71 @@ class ChallanService:
                 best_score = score
 
         if best_score == 0:
-            return self._thz_from_code(THZCategory.THZ_12)
+            return await self._classify_with_openai(offense_details, offenses)
         return self._thz_from_code(best_code)
+
+
+    async def _classify_with_openai(
+        self,
+        offense_details: str,
+        offenses: list[str],
+    ) -> THZCategoryMatch:
+        allowed_categories = ", ".join(code.value for code in THZ_CATEGORY_PRIORITY)
+        category_descriptions = "\n".join(
+            f"- {code.value}: {THZ_CATEGORY_META[code].description}"
+            for code in THZ_CATEGORY_PRIORITY
+        )
+        offenses_text = "\n".join(f"- {offense}" for offense in offenses) if offenses else "- None"
+        prompt = (
+            "You classify Indian traffic challans into one THZ category.\n"
+            "Choose exactly one category from this list and return only that category string, nothing else:\n"
+            f"{allowed_categories}\n\n"
+            "THZ category descriptions:\n"
+            f"{category_descriptions}\n\n"
+            "Use both the challan offense_details and the offenses array.\n"
+            "If there are multiple offenses, classify using the highest severity offense.\n\n"
+            f"offense_details: {offense_details or 'None'}\n"
+            f"offenses:\n{offenses_text}\n"
+        )
+
+        try:
+            response = await self.openai_client.responses.create(
+                model=self.OPENAI_CLASSIFICATION_MODEL,
+                input=prompt,
+                max_output_tokens=16,
+            )
+            raw_output = (response.output_text or "").strip()
+            category = self._extract_thz_category(raw_output)
+            if category is None:
+                log_event(
+                    self.logger,
+                    "WARNING",
+                    "challan.classify.openai_invalid_output",
+                    output=raw_output,
+                )
+                return self._thz_from_code(THZCategory.THZ_12)
+
+            log_event(
+                self.logger,
+                "INFO",
+                "challan.classify.openai_success",
+                category=category.value,
+            )
+            return self._thz_from_code(category)
+        except Exception as exc:
+            self.logger.exception(
+                "event=challan.classify.openai_failed error=%s",
+                str(exc),
+            )
+            return self._thz_from_code(THZCategory.THZ_12)
+
+
+    def _extract_thz_category(self, value: str) -> THZCategory | None:
+        normalized = value.strip().upper()
+        for category in THZ_CATEGORY_PRIORITY:
+            if normalized == category.value.upper():
+                return category
+        return None
 
 
     def _thz_from_code(self, code: THZCategory) -> THZCategoryMatch:

@@ -2,8 +2,9 @@ import httpx
 from datetime import datetime
 from abc import ABC, abstractmethod
 
-from src.config import app_settings
 from src.violations.types import NormalizedChallan, NormalizedChallanOffenseDetail
+
+from src.config import app_settings
 
 
 # Later, use this base class to implement other providers like MahaTraffic, etc. For now, we only have Surepass, so we can keep it simple and directly implement the ingest logic there. But this structure allows us to easily add more providers in the future without changing the service layer.
@@ -24,13 +25,9 @@ class BaseChallanProvider(ABC):
     
 class SurepassChallanAdvanced(BaseChallanProvider):
     
-    def __init__(self):
-        self.client = httpx.AsyncClient(
-            base_url=app_settings.SUREPASS_BASE_URL,
-            headers={"Authorization": app_settings.SUREPASS_API_KEY}
-        )
-    
-    source_id = "surepass_challan_advanced"
+    def __init__(self, client: httpx.AsyncClient):
+        self.client = client
+        self.source_id = "surepass_challan_advanced"
     
     async def fetch(self, vehicle_number: str):
         pass
@@ -40,19 +37,20 @@ class SurepassChallanAdvanced(BaseChallanProvider):
 
 
 class ChallanIngest:
-    def __init__(self):
+    def __init__(self, client: httpx.AsyncClient):
         self.source_id = "surepass_v1_challan_advanced"
-        self.client = httpx.AsyncClient(
-            base_url=app_settings.SUREPASS_BASE_URL,
-            headers={"Authorization": app_settings.SUREPASS_API_KEY}
-        )
+        self.client = client
+        
         
     async def fetch(self, vehicle_number: str) -> tuple[str, list[NormalizedChallan]]:
         try:
             response = await self.client.post(
-                "/rc/rc-related/challan-advanced",
+                f"{app_settings.SUREPASS_BASE_URL}/rc/rc-related/challan-advanced",
                 data={
                     "rc_number": vehicle_number
+                },
+                headers={
+                    "Authorization": app_settings.SUREPASS_API_KEY
                 }
             )
             response.raise_for_status()

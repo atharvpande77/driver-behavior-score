@@ -1,5 +1,5 @@
 # Global dependencies
-
+import httpx
 from fastapi import Depends, HTTPException, Request, status
 from typing import Annotated
 
@@ -20,6 +20,17 @@ def validate_vehicle_number(request: Request):
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
+        
+        
+async def get_http_client(request: Request):
+    http_client = getattr(request.state, "http_client", None)
+    if not http_client:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"message": "Internal Server Error", "detail": "No HTTP client initialized in lifespan."},
+        )
+    return http_client
 
 
 ValidateVehicleNumber = Annotated[str, Depends(validate_vehicle_number)]
+GetHttpClient = Annotated[httpx.AsyncClient, Depends(get_http_client)]

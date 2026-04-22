@@ -6,6 +6,9 @@ from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from contextlib import asynccontextmanager
+import httpx
+
 from src.score.router import router as score_router
 from src.violations.router import router as violations_router
 from src.vehicles.router import router as vehicles_router
@@ -18,6 +21,7 @@ from src.logging_utils import (
     reset_request_id,
     set_request_id,
 )
+from src.config import app_settings
 
 
 VERSIONED_BASE_PREFIX = "/api/v1"
@@ -39,11 +43,23 @@ configure_logging()
 logger = get_logger(__name__)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        max_redirects=10,
+        timeout=httpx.Timeout(10.0, connect=5.0),
+    ) as client:
+        yield {"http_client": client}
+
+
+
 app = FastAPI(
     title=APP_TITLE,
     summary=APP_SUMMARY,
     description=APP_DESCRIPTION,
     version="0.1.0",
+    lifespan=lifespan
 )
 
 

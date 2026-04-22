@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, insert, update, func, tuple_
+from sqlalchemy import select, insert, update, func, tuple_, delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from datetime import date, timedelta
 import uuid
@@ -47,11 +47,22 @@ class ChallanRepository(BaseDBRepository):
                 )
         )
         return result.scalars().all()
+
+
+    async def get_all_for_sync(self, vehicle_number: str, source_id: str) -> list[Challan]:
+        result = await self.db.execute(
+            select(Challan)
+                .where(
+                    Challan.vehicle_number == vehicle_number,
+                    Challan.source_id == source_id,
+                )
+        )
+        return result.scalars().all()
     
     
     async def insert(self, challans: list[dict]):
         if not challans:
-            return
+            return {}
 
         offense_name_rows: list[dict] = []
         challan_rows: list[dict] = []
@@ -69,8 +80,30 @@ class ChallanRepository(BaseDBRepository):
         result = await self.db.execute(
             pg_insert(Challan)
                 .values(challan_rows)
-                .on_conflict_do_nothing(
+                .on_conflict_do_update(
                     index_elements=["challan_number", "source_id"]
+                    ,
+                    set_={
+                        "vehicle_number": pg_insert(Challan).excluded.vehicle_number,
+                        "offense_details": pg_insert(Challan).excluded.offense_details,
+                        "thz_category": pg_insert(Challan).excluded.thz_category,
+                        "thz_description": pg_insert(Challan).excluded.thz_description,
+                        "thz_deduction": pg_insert(Challan).excluded.thz_deduction,
+                        "severity": pg_insert(Challan).excluded.severity,
+                        "challan_place": pg_insert(Challan).excluded.challan_place,
+                        "challan_datetime": pg_insert(Challan).excluded.challan_datetime,
+                        "state_code": pg_insert(Challan).excluded.state_code,
+                        "rto": pg_insert(Challan).excluded.rto,
+                        "accused_name": pg_insert(Challan).excluded.accused_name,
+                        "fine_amount": pg_insert(Challan).excluded.fine_amount,
+                        "challan_status": pg_insert(Challan).excluded.challan_status,
+                        "court_challan": pg_insert(Challan).excluded.court_challan,
+                        "court_name": pg_insert(Challan).excluded.court_name,
+                        "upstream_code": pg_insert(Challan).excluded.upstream_code,
+                        "active": True,
+                        "removed_at": None,
+                        "updated_at": func.now(),
+                    }
                 )
                 .returning(
                     Challan.id,
@@ -84,6 +117,13 @@ class ChallanRepository(BaseDBRepository):
             (row["challan_number"], row["source_id"]): row["id"]
             for row in inserted_rows
         }
+
+        challan_ids = list(challan_id_map.values())
+        if challan_ids:
+            await self.db.execute(
+                delete(ChallansOffenseDetail)
+                    .where(ChallansOffenseDetail.challan_id.in_(challan_ids))
+            )
 
         offense_rows: list[dict] = []
         for row in offense_name_rows:
@@ -104,6 +144,7 @@ class ChallanRepository(BaseDBRepository):
                 insert(ChallansOffenseDetail)
                     .values(offense_rows)
             )
+        return challan_id_map
         
     
     async def soft_delete(self, *, vehicle_number: str, to_delete: set[tuple[str, str]]):

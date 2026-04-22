@@ -3,33 +3,63 @@ from datetime import date
 
 from src.vehicles.types import NormalizedRC
 
-from src.config import app_settings
 from src.logging_utils import get_logger, log_event
+
+from src.config import app_settings
 
 
 class RCIngest:
-    def __init__(self):
+    def __init__(self, client: httpx.AsyncClient):
         self.source_id = "surepass_rc_v2"
         self.logger = get_logger(__name__)
-        self.client = httpx.AsyncClient(
-            base_url=app_settings.SUREPASS_BASE_URL,
-            headers={"Authorization": app_settings.SUREPASS_API_KEY}
-        )
+        self.client = client
         
         
     async def fetch(self, vehicle_number: str):
         log_event(self.logger, "INFO", "vehicle.fetch.start", vehicle_number=vehicle_number, source_id=self.source_id)
         try:
             response = await self.client.post(
-                '/rc/rc-v2',
+                f"{app_settings.SUREPASS_BASE_URL}/rc/rc-v2",
                 data={
                     "id_number": vehicle_number,
                     "enrich": True
+                },
+                headers={
+                    "Authorization": app_settings.SUREPASS_API_KEY
                 }
             )
             response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code
+            if 400 <= status_code < 500:
+                log_event(
+                    self.logger,
+                    "WARNING",
+                    "vehicle.fetch.vendor_rejected",
+                    vehicle_number=vehicle_number,
+                    source_id=self.source_id,
+                    status_code=status_code,
+                )
+                return None
+
+            self.logger.warning(
+                "event=vehicle.fetch.vendor_5xx vehicle_number=%s source_id=%s status_code=%s error=%s",
+                vehicle_number,
+                self.source_id,
+                status_code,
+                str(e),
+            )
+            return None
+        except httpx.HTTPError as e:
+            self.logger.warning(
+                "event=vehicle.fetch.failed vehicle_number=%s source_id=%s error=%s",
+                vehicle_number,
+                self.source_id,
+                str(e),
+            )
+            return None
         except Exception as e:
-            self.logger.exception(
+            self.logger.warning(
                 "event=vehicle.fetch.failed vehicle_number=%s source_id=%s error=%s",
                 vehicle_number,
                 self.source_id,

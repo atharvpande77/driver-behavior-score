@@ -18,6 +18,8 @@ class AppSettings(BaseSettings):
     JWT_REFRESH_EXPIRY_SECONDS: int = 604800
     LOG_LEVEL: str = "INFO"
     LOG_USE_COLORS: bool = True
+    
+    OPENAI_API_KEY: str
 
 
 app_settings = AppSettings()

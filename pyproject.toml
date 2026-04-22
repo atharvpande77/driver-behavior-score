@@ -12,6 +12,7 @@ dependencies = [
     "gunicorn>=25.3.0",
     "httptools>=0.7.1",
     "httpx>=0.28.1",
+    "openai>=2.32.0",
     "psycopg2>=2.9.11",
     "pydantic-settings>=2.13.1",
     "python-jose[cryptography]>=3.5.0",
