@@ -17,7 +17,14 @@ DATABASE_URL = getattr(app_settings, "DATABASE_URL", None)
 if DATABASE_URL is None:
     raise RuntimeError("DATABASE_URL is not set")
 
-engine = create_async_engine(url=DATABASE_URL)
+engine = create_async_engine(
+    url=DATABASE_URL,
+    pool_size=5,
+    max_overflow=3,
+    pool_timeout=30,
+    pool_recycle=1800,
+    pool_pre_ping=True,
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:

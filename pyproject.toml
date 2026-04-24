@@ -17,5 +17,6 @@ dependencies = [
     "pydantic-settings>=2.13.1",
     "python-jose[cryptography]>=3.5.0",
     "sqlalchemy>=2.0.0",
+    "uvloop>=0.22.1; sys_platform != 'win32'",
     "uvicorn>=0.42.0",
 ]
