@@ -8,18 +8,27 @@ class AppSettings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
     )
+    
+    APP_PORT: int
 
     DATABASE_URL: Optional[str] = None
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_PORT: int
+    
     SUREPASS_BASE_URL: str
     SUREPASS_API_KEY: str
+    
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_EXPIRY_SECONDS: int = 900
     JWT_REFRESH_EXPIRY_SECONDS: int = 604800
+    
     LOG_LEVEL: str = "INFO"
     LOG_USE_COLORS: bool = True
     
     OPENAI_API_KEY: str
-
+    
 
 app_settings = AppSettings()

@@ -11,6 +11,7 @@ from sqlalchemy import (
     TIMESTAMP,
     DATE,
     text,
+    Text,
     
     ForeignKey,
     UniqueConstraint,
@@ -80,7 +81,7 @@ class Vehicle(Base):
     permit_type: Mapped[str | None] = mapped_column(String(128))
     national_permit_number: Mapped[str | None] = mapped_column(String(64))
     national_permit_issued_by: Mapped[str | None] = mapped_column(String(128))
-    blacklist_status: Mapped[str | None] = mapped_column(String(64))
+    blacklist_status: Mapped[str | None] = mapped_column(Text)
     noc_details: Mapped[str | None] = mapped_column(String(256))
     owner_number: Mapped[int | None] = mapped_column(SmallInteger)
     rc_status: Mapped[str | None] = mapped_column(String(64))

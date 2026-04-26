@@ -89,9 +89,9 @@ class DashboardService:
         async with semaphore:
             try:
                 lookup = await self._resolve_vehicle_lookup(vehicle_number, include_rc)
-            except Exception:
+            except Exception as e:
                 logger = self.logger
-                logger.exception("event=dashboard.lookup.batch.item_error vehicle_number=%s", vehicle_number)
+                logger.exception("event=dashboard.lookup.batch.item_error vehicle_number=%s\n%s", vehicle_number, e)
                 return None
 
         dbs_stats = lookup.dbs.dbs_stats if include_rc else lookup.dbs
