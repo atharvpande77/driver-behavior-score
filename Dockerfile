@@ -19,7 +19,7 @@ CMD uv run alembic upgrade head && \
     uv run gunicorn src.main:app \
     --workers 2 \
     --worker-class uvicorn.workers.UvicornWorker \
-    --bind 0.0.0.0:8000 \
+    --bind 0.0.0.0:8001 \
     --timeout 60 \
     --keep-alive 5 \
     --access-logfile - \
