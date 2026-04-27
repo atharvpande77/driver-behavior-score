@@ -1,32 +1,40 @@
 import asyncio
 from datetime import datetime
 
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
 from src.dashboard.schemas import (
     BatchVehicleLookupItem,
     BatchVehicleLookupResponse,
     VehicleLookupResponse,
 )
 
+from src.score.engine import ScoreEngine
+from src.score.repository import ScoreRepository
 from src.score.types import RiskLevel
 from src.score.service import ScoreService
+from src.violations.repository import ChallanRepository
 from src.violations.service import ChallanService
+from src.vehicles.repository import VehicleRepository
 from src.vehicles.service import VehicleService
 from src.logging_utils import get_logger, log_event
 
 
 class DashboardService:
-    BATCH_LOOKUP_CONCURRENCY = 10
+    BATCH_LOOKUP_CONCURRENCY = 5
 
     def __init__(
         self,
         *,
         challan_svc: ChallanService,
         score_svc: ScoreService,
-        vehicle_svc: VehicleService
+        vehicle_svc: VehicleService,
+        session_factory: async_sessionmaker[AsyncSession] | None = None,
     ):
         self.challan_svc = challan_svc
         self.score_svc = score_svc
         self.vehicle_svc = vehicle_svc
+        self.session_factory = session_factory
         self.logger = get_logger(__name__)
     
     
@@ -79,6 +87,29 @@ class DashboardService:
             fresh_as_of=fresh_as_of,
             queried_at=datetime.now(),
         )
+
+
+    def _build_lookup_service_for_session(self, session: AsyncSession) -> "DashboardService":
+        challan_svc = ChallanService(
+            repo=ChallanRepository(session),
+            ingest=self.challan_svc.ingest,
+        )
+        vehicle_svc = VehicleService(
+            repo=VehicleRepository(session),
+            ingest=self.vehicle_svc.ingest,
+        )
+        score_svc = ScoreService(
+            repo=ScoreRepository(session),
+            engine=ScoreEngine(),
+            challan_svc=challan_svc,
+            vehicle_svc=vehicle_svc,
+        )
+        return DashboardService(
+            challan_svc=challan_svc,
+            score_svc=score_svc,
+            vehicle_svc=vehicle_svc,
+            session_factory=self.session_factory,
+        )
         
 
 
@@ -89,8 +120,18 @@ class DashboardService:
         include_rc: bool = True,
     ) -> BatchVehicleLookupItem | None:
         async with semaphore:
+            if self.session_factory is None:
+                self.logger.error("event=dashboard.lookup.batch.missing_session_factory")
+                return None
+
             try:
-                lookup = await self._resolve_vehicle_lookup(vehicle_number, include_rc)
+                async with self.session_factory() as session:
+                    lookup_service = self._build_lookup_service_for_session(session)
+                    try:
+                        lookup = await lookup_service._resolve_vehicle_lookup(vehicle_number, include_rc)
+                    except Exception:
+                        await session.rollback()
+                        raise
             except Exception as e:
                 logger = self.logger
                 logger.exception("event=dashboard.lookup.batch.item_error vehicle_number=%s\n%s", vehicle_number, e)
