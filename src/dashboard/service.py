@@ -52,10 +52,12 @@ class DashboardService:
         sync_happened: bool = await self.challan_svc.refresh_challans_if_stale(vehicle_number)
         
         if include_rc:
-            vehicle, challans = await asyncio.gather(
-                self.vehicle_svc.get_vehicle(vehicle_number),
-                self.challan_svc.list_active_challans(vehicle_number),
-            )
+            # vehicle, challans = await asyncio.gather(
+            #     self.vehicle_svc.get_vehicle(vehicle_number),
+            #     self.challan_svc.list_active_challans(vehicle_number),
+            # )
+            vehicle = await self.vehicle_svc.get_vehicle(vehicle_number)
+            challans = await self.challan_svc.list_active_challans(vehicle_number)
         else:
             challans = await self.challan_svc.list_active_challans(vehicle_number)
             vehicle = None
