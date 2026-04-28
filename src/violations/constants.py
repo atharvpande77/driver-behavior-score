@@ -2,7 +2,7 @@ from src.violations.types import THZCategory, THZCategoryMatch
 
 
 TTL_HOURS: int = 48
-SCORING_WINDOW_DAYS: int = 365*2
+SCORING_WINDOW_DAYS: int = 365*3
 CLASSIFICATION_CONCURRENCY_LIMIT: int = 10
 
 
