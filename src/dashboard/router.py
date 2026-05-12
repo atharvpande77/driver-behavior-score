@@ -10,6 +10,7 @@ from src.dashboard.schemas import (
 
 from src.auth.dependencies import get_current_dashboard_user
 from src.dependencies import ValidateVehicleNumber
+from src.dependencies import GetUsageRecorder
 
 
 router = APIRouter(
@@ -24,10 +25,11 @@ router = APIRouter(
 )
 async def batch_vehicle_lookup(
     payload: BatchVehicleLookupRequest,
+    usage: GetUsageRecorder,
     dashboard_svc: DashboardService = Depends(get_dashboard_service),
     include_rc: bool = True,
 ):
-    return await dashboard_svc.batch_vehicle_lookup(payload.vehicle_numbers, include_rc)
+    return await dashboard_svc.batch_vehicle_lookup(payload.vehicle_numbers, usage, include_rc)
 
 
 @router.get(
@@ -36,7 +38,8 @@ async def batch_vehicle_lookup(
 )
 async def vehicle_lookup(
     vehicle_number: ValidateVehicleNumber,
+    usage: GetUsageRecorder,
     dashboard_svc: DashboardService = Depends(get_dashboard_service),
     include_rc: bool = True,
 ):
-    return await dashboard_svc.vehicle_lookup(vehicle_number, include_rc)
+    return await dashboard_svc.vehicle_lookup(vehicle_number, usage, include_rc)

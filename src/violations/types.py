@@ -53,6 +53,25 @@ class ChallanDTO:
     thz_category_deduction: int | None
     thz_deduction: int
     challan_status: str | None
+    
+    
+@dataclass
+class ChallanRefreshResult:
+    diff: bool
+    challan_fetch_failed: bool = False
+    error_info: str | None = None
+    vendor_latency_ms: float | None = None
+    net_changes: int = 0
+    from_db_cache: bool = True
+
+
+@dataclass(kw_only=True)
+class NormalizedChallanFetchResult:
+    source_id: str
+    challans: list[NormalizedChallan]
+    vendor_latency_ms: float | None = None
+    challan_fetch_failed: bool = False
+    challan_error_info: str | None = None
 
 
 class THZCategory(str, Enum):

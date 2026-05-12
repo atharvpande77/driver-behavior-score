@@ -1,7 +1,8 @@
+import time
 import httpx
 from datetime import date
 
-from src.vehicles.types import NormalizedRC
+from src.vehicles.types import NormalizedRC, NormalizedRCFetchResult
 
 from src.logging_utils import get_logger, log_event
 
@@ -9,13 +10,44 @@ from src.config import app_settings
 
 
 class RCIngest:
+    MAX_ERROR_INFO_LENGTH = 512
+
     def __init__(self, client: httpx.AsyncClient):
         self.source_id = "surepass_rc_v2"
         self.logger = get_logger(__name__)
         self.client = client
         
         
-    async def fetch(self, vehicle_number: str):
+    def _truncate_error_info(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if len(value) <= self.MAX_ERROR_INFO_LENGTH:
+            return value
+        return value[: self.MAX_ERROR_INFO_LENGTH - 3] + "..."
+
+    def _extract_error_info(self, exc: httpx.HTTPError) -> str | None:
+        response = getattr(exc, "response", None)
+        if response is None:
+            return self._truncate_error_info(str(exc) or None)
+
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                return self._truncate_error_info(
+                    payload.get("message")
+                    or payload.get("detail")
+                    or payload.get("error")
+                    or str(payload)
+                )
+            return self._truncate_error_info(str(payload))
+        except ValueError:
+            return self._truncate_error_info(response.text or str(exc) or None)
+
+
+    async def fetch(self, vehicle_number: str) -> NormalizedRCFetchResult:
+        start = time.perf_counter()
+        
         log_event(self.logger, "INFO", "vehicle.fetch.start", vehicle_number=vehicle_number, source_id=self.source_id)
         try:
             response = await self.client.post(
@@ -32,6 +64,7 @@ class RCIngest:
         except httpx.HTTPStatusError as e:
             status_code = e.response.status_code
             if 400 <= status_code < 500:
+                error_info = self._extract_error_info(e)
                 log_event(
                     self.logger,
                     "WARNING",
@@ -39,33 +72,60 @@ class RCIngest:
                     vehicle_number=vehicle_number,
                     source_id=self.source_id,
                     status_code=status_code,
+                    error_info=error_info,
                 )
-                return None
+                return NormalizedRCFetchResult(
+                    vehicle=None,
+                    vendor_rc_latency_ms=(time.perf_counter() - start) * 1000,
+                    rc_fetch_failed=True,
+                    rc_error_info=error_info,
+                )
 
+            error_info = self._extract_error_info(e)
             self.logger.warning(
-                "event=vehicle.fetch.vendor_5xx vehicle_number=%s source_id=%s status_code=%s error=%s",
+                "event=vehicle.fetch.vendor_5xx vehicle_number=%s source_id=%s status_code=%s error_info=%s error=%s",
                 vehicle_number,
                 self.source_id,
                 status_code,
+                error_info,
                 str(e),
             )
-            return None
+            return NormalizedRCFetchResult(
+                vehicle=None,
+                vendor_rc_latency_ms=(time.perf_counter() - start) * 1000,
+                rc_fetch_failed=True,
+                rc_error_info=error_info,
+            )
         except httpx.HTTPError as e:
+            error_info = self._extract_error_info(e)
             self.logger.warning(
-                "event=vehicle.fetch.failed vehicle_number=%s source_id=%s error=%s",
+                "event=vehicle.fetch.failed vehicle_number=%s source_id=%s error_info=%s error=%s",
                 vehicle_number,
                 self.source_id,
+                error_info,
                 str(e),
             )
-            return None
+            return NormalizedRCFetchResult(
+                vehicle=None,
+                vendor_rc_latency_ms=(time.perf_counter() - start) * 1000,
+                rc_fetch_failed=True,
+                rc_error_info=error_info,
+            )
         except Exception as e:
+            error_info = self._truncate_error_info(str(e) or None)
             self.logger.warning(
-                "event=vehicle.fetch.failed vehicle_number=%s source_id=%s error=%s",
+                "event=vehicle.fetch.failed vehicle_number=%s source_id=%s error_info=%s error=%s",
                 vehicle_number,
                 self.source_id,
+                error_info,
                 str(e),
             )
-            return None
+            return NormalizedRCFetchResult(
+                vehicle=None,
+                vendor_rc_latency_ms=(time.perf_counter() - start) * 1000,
+                rc_fetch_failed=True,
+                rc_error_info=error_info,
+            )
         log_event(
             self.logger,
             "INFO",
@@ -76,7 +136,14 @@ class RCIngest:
         )
         
         raw_rc_data = response.json().get("data", {})
-        return self._map(raw_rc_data)
+        normalized_rc = self._map(raw_rc_data)
+        latency_ms = (time.perf_counter() - start) * 1000
+        return NormalizedRCFetchResult(
+            vehicle=normalized_rc,
+            vendor_rc_latency_ms=latency_ms,
+            rc_fetch_failed=False,
+            rc_error_info=None,
+        )
         
         
     def _map(self, raw_rc_data: dict) -> NormalizedRC:

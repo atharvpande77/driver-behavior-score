@@ -1,6 +1,3 @@
-from time import perf_counter
-from uuid import uuid4
-
 from fastapi import FastAPI, HTTPException
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +6,8 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import httpx
 
+from src.usage.middleware import register_usage_event_collection_middleware
+from src.usage.router import router as usage_router
 from src.score.router import router as score_router
 from src.violations.router import router as violations_router
 from src.vehicles.router import router as vehicles_router
@@ -18,10 +17,7 @@ from src.logging_utils import (
     configure_logging,
     get_logger,
     log_event,
-    reset_request_id,
-    set_request_id,
 )
-from src.config import app_settings
 
 
 VERSIONED_BASE_PREFIX = "/api/v1"
@@ -78,41 +74,9 @@ app.include_router(violations_router, prefix=f"{VERSIONED_BASE_PREFIX}/violation
 app.include_router(vehicles_router, prefix=f"{VERSIONED_BASE_PREFIX}/vehicles")
 app.include_router(auth_router, prefix="/auth")
 app.include_router(dashboard_router, prefix="/dashboard")
+app.include_router(usage_router, prefix="/dashboard/usage")
 
-
-@app.middleware("http")
-async def request_logging_middleware(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    token = set_request_id(request_id)
-    request.state.request_id = request_id
-    start = perf_counter()
-    log_event(
-        logger,
-        "INFO",
-        "http.request.start",
-        method=request.method,
-        path=request.url.path,
-    )
-
-    try:
-        response = await call_next(request)
-    except Exception:
-        reset_request_id(token)
-        raise
-
-    duration_ms = int((perf_counter() - start) * 1000)
-    response.headers["X-Request-ID"] = request_id
-    log_event(
-        logger,
-        "INFO",
-        "http.request.end",
-        method=request.method,
-        path=request.url.path,
-        status_code=response.status_code,
-        duration_ms=duration_ms,
-    )
-    reset_request_id(token)
-    return response
+register_usage_event_collection_middleware(app)
 
 
 @app.exception_handler(HTTPException)

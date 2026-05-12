@@ -1,8 +1,7 @@
 from datetime import date, timedelta
-
 from src.score.repository import ScoreRepository
 from src.score.engine import ScoreEngine, PremiumEngine
-from src.score.types import DBSWithPremium, DBSStats, RiskLevel, ViolationCounts
+from src.score.types import DBSWithPremium, DBSStats, RiskLevel, ViolationCounts, DBSLookupResult
 
 from src.violations.service import ChallanService
 from src.violations.constants import SCORING_WINDOW_DAYS
@@ -11,6 +10,9 @@ from src.vehicles.service import VehicleService
 from src.vehicles.types import VehicleDTO
 from src.models import DBSRecord, Vehicle
 from src.logging_utils import get_logger, log_event
+from src.types import APINames, UsageStatsPerVehicle
+from src.dashboard.utils import get_risk_category
+from src.dependencies import UsageRecorder
 
 
 class ScoreService:
@@ -83,21 +85,42 @@ class ScoreService:
     async def get_dbs_record(
         self,
         vehicle_number: str,
-    ) -> DBSRecord:
+    ) -> DBSLookupResult:
         challans_changed = await self.challan_svc.refresh_challans_if_stale(vehicle_number)
         
-        if challans_changed:
+        if challans_changed.diff:
             log_event(self.logger, "INFO", "score.record.recompute_required", vehicle_number=vehicle_number)
-            return await self.compute_and_add_score_record(vehicle_number)
+            return DBSLookupResult(
+                record=await self.compute_and_add_score_record(vehicle_number),
+                from_db_cache=False,
+                challan_net_changes=challans_changed.net_changes,
+                challan_fetch_failed=challans_changed.challan_fetch_failed,
+                challan_error_info=challans_changed.error_info,
+                vendor_challan_latency_ms=challans_changed.vendor_latency_ms,
+            )
             
         latest = await self.repo.get_latest(vehicle_number)
         
         if not latest:
             log_event(self.logger, "INFO", "score.record.cache_miss", vehicle_number=vehicle_number)
-            return await self.compute_and_add_score_record(vehicle_number)
+            return DBSLookupResult(
+                record=await self.compute_and_add_score_record(vehicle_number),
+                from_db_cache=False,
+                challan_net_changes=challans_changed.net_changes,
+                challan_fetch_failed=challans_changed.challan_fetch_failed,
+                challan_error_info=challans_changed.error_info,
+                vendor_challan_latency_ms=challans_changed.vendor_latency_ms,
+            )
             
         log_event(self.logger, "INFO", "score.record.cache_hit", vehicle_number=vehicle_number)
-        return latest
+        return DBSLookupResult(
+            record=latest,
+            from_db_cache=True,
+            challan_net_changes=challans_changed.net_changes,
+            challan_fetch_failed=challans_changed.challan_fetch_failed,
+            challan_error_info=challans_changed.error_info,
+            vendor_challan_latency_ms=challans_changed.vendor_latency_ms,
+        )
     
     
     async def get_dbs_with_premium(
@@ -105,7 +128,8 @@ class ScoreService:
         vehicle_number: str,
         vehicle: Vehicle
     ):
-        score_record = self._to_dbs_stats(await self.get_dbs_record(vehicle_number))
+        score_lookup = await self.get_dbs_record(vehicle_number)
+        score_record = self._to_dbs_stats(score_lookup.record)
             
         base_premium, dbs_adjusted_premium = PremiumEngine.compute(
             score_record.premium_modifier_pct,
@@ -121,13 +145,41 @@ class ScoreService:
         )
         
         
-    async def get_score_response(self, vehicle_number: str):
+    async def get_score_response(self, vehicle_number: str, usage: UsageRecorder | None = None):
         vehicle = await self.vehicle_svc.get_vehicle(vehicle_number)
-        
-        return await self.get_dbs_with_premium(
-            vehicle_number,
-            vehicle
+        score_lookup = await self.get_dbs_record(vehicle_number)
+        score_record = self._to_dbs_stats(score_lookup.record)
+
+        base_premium, adjusted_premium = PremiumEngine.compute(
+            score_record.premium_modifier_pct,
+            vehicle.category,
+            vehicle.cubic_capacity,
+            vehicle.fuel_type,
         )
+        response = DBSWithPremium(
+            dbs_stats=score_record,
+            base_premium=base_premium,
+            adjusted_premium=adjusted_premium
+        )
+
+        if usage is not None:
+            usage.store_usage([
+                UsageStatsPerVehicle(
+                    api_name=APINames.SCORE,
+                    vehicle_number=vehicle_number,
+                    risk_category=get_risk_category(response),
+                    from_db_cache=score_lookup.from_db_cache,
+                    challan_net_changes=score_lookup.challan_net_changes,
+                    challan_fetch_failed=score_lookup.challan_fetch_failed,
+                    challan_error_info=score_lookup.challan_error_info,
+                    vendor_challan_latency_ms=score_lookup.vendor_challan_latency_ms,
+                    rc_fetch_failed=vehicle.rc_fetch_failed,
+                    rc_error_info=vehicle.rc_error_info,
+                    vendor_rc_latency_ms=vehicle.vendor_rc_latency_ms,
+                )
+            ])
+
+        return response
         
         
     async def _compute_and_store(

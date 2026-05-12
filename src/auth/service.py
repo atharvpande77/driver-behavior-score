@@ -170,11 +170,39 @@ class AuthService:
         log_event(self.logger, "INFO", "auth.access.validated", email=user.email, user_id=user.id)
         return user
 
-
 class APIKeyService:
     def __init__(self, *, repo: APIKeyRepository):
         self.repo = repo
         self.logger = get_logger(__name__)
+
+    async def verify_api_key(self, raw_key: str) -> APIKey:
+        if not raw_key:
+            log_event(self.logger, "WARNING", "auth.api_key.verify.missing_header")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing X-API-Key header.",
+            )
+
+        key_hash = hash_api_key(raw_key)
+        api_key = await self.repo.get_by_hash(key_hash)
+        if api_key is None or not api_key.is_active:
+            log_event(self.logger, "WARNING", "auth.api_key.verify.invalid_or_inactive")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or inactive API key.",
+            )
+
+        await self.repo.update_last_used(api_key)
+        await self.repo.commit()
+        log_event(
+            self.logger,
+            "INFO",
+            "auth.api_key.verify.success",
+            key_id=api_key.id,
+            key_prefix=api_key.key_prefix,
+            user_id=api_key.created_by,
+        )
+        return api_key
 
     async def create_key(self, user_id: uuid.UUID, name: str) -> tuple[str, APIKey]:
         log_event(self.logger, "INFO", "auth.api_key.create.attempt", user_id=user_id)

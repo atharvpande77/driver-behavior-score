@@ -5,6 +5,7 @@ from src.violations.dependencies import get_challan_service
 from src.violations.service import ChallanService
 
 from src.dependencies import ValidateVehicleNumber
+from src.dependencies import GetUsageRecorder
 
 router = APIRouter(
     tags=["public"],
@@ -17,7 +18,8 @@ router = APIRouter(
 )
 async def get_violations(
     vehicle_number: ValidateVehicleNumber,
+    usage: GetUsageRecorder,
     challan_svc: ChallanService = Depends(get_challan_service),
 ):
     """Get active challans for the given vehicle number."""
-    return await challan_svc.get_active_challans(vehicle_number)
+    return await challan_svc.get_active_challans(vehicle_number, usage=usage)

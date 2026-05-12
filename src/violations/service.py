@@ -1,5 +1,4 @@
 import asyncio
-
 from openai import AsyncOpenAI
 
 from src.config import app_settings
@@ -12,15 +11,24 @@ from src.violations.constants import (
     THZ_CATEGORY_META,
     THZ_KEYWORD_RULES,
 )
-from src.violations.types import NormalizedChallan, THZCategory, THZCategoryMatch
+from src.violations.types import (
+    NormalizedChallan,
+    NormalizedChallanFetchResult,
+    THZCategory,
+    THZCategoryMatch,
+    ChallanRefreshResult
+)
 from src.violations.utils import get_severity_from_thz_category, none_if_blank, build_classification_corpus, normalize_offense_text, needs_fetch
 from src.violations.types import ChallanDTO
 from src.models import Challan
 from src.logging_utils import get_logger, log_event
+from src.types import APINames, UsageStatsPerVehicle
+from src.dependencies import UsageRecorder
 
 
 class ChallanService:
     OPENAI_CLASSIFICATION_MODEL = "gpt-5.4-nano-2026-03-17"
+    MAX_ERROR_INFO_LENGTH = 512
 
     def __init__(
         self,
@@ -39,18 +47,18 @@ class ChallanService:
         return await self.repo.get_last_fetch(vehicle_number, source_id)
         
         
-    async def refresh_challans_if_stale(self, vehicle_number: str) -> bool:
+    async def refresh_challans_if_stale(self, vehicle_number: str) -> ChallanRefreshResult:
         """Refresh challans for the given vehicle number if the source data is stale. Returns True if anything changed."""
         
         last_fetch_timestamp = await self.get_last_challan_fetch_timestamp(vehicle_number)
         
         if last_fetch_timestamp and not needs_fetch(last_fetch_timestamp, TTL_HOURS):
             log_event(self.logger, "INFO", "challan.refresh.skip_fresh_cache", vehicle_number=vehicle_number)
-            return False
+            return ChallanRefreshResult(from_db_cache=True, diff=False)
         
-        diff = await self._refresh_challans_from_source(vehicle_number)
-        log_event(self.logger, "INFO", "challan.refresh.completed", vehicle_number=vehicle_number, changed=diff)
-        return diff
+        refresh_result = await self._refresh_challans_from_source(vehicle_number)
+        log_event(self.logger, "INFO", "challan.refresh.completed",vehicle_number=vehicle_number, changed=refresh_result.diff, net_changes=refresh_result.net_changes, vendor_latency_ms=refresh_result.vendor_latency_ms)
+        return refresh_result
         
         
     def _to_challan_dto(self, challan) -> ChallanDTO:
@@ -78,29 +86,53 @@ class ChallanService:
         return [self._to_challan_dto(challan) for challan in challans]
     
     
-    async def get_active_challans(self, vehicle_number: str) -> list[ChallanDTO]:
+    async def get_active_challans(
+        self,
+        vehicle_number: str,
+        usage: UsageRecorder | None = None,
+    ) -> list[ChallanDTO]:
+        
         """Refresh challans if stale, then return the active challans for the vehicle."""
         
-        await self.refresh_challans_if_stale(vehicle_number)
-        challans = await self.repo.get_all_active(vehicle_number)
-        if not challans:
-            return []
-        return [self._to_challan_dto(challan) for challan in challans]
+        refresh_result = await self.refresh_challans_if_stale(vehicle_number)
+        
+        if usage is not None:
+            usage.store_usage([
+                UsageStatsPerVehicle(
+                    api_name=APINames.VIOLATIONS,
+                    vehicle_number=vehicle_number,
+                    risk_category=None,
+                    from_db_cache=refresh_result.from_db_cache,
+                    challan_fetch_failed=refresh_result.challan_fetch_failed,
+                    challan_error_info=refresh_result.error_info,
+                    vendor_challan_latency_ms=refresh_result.vendor_latency_ms,
+                )
+            ])
+        
+        return await self.list_active_challans(vehicle_number)
         
     
-    async def _refresh_challans_from_source(self, vehicle_number: str) -> bool:
+    async def _refresh_challans_from_source(self, vehicle_number: str) -> ChallanRefreshResult:
         diff: bool = False
-        
-        try:
-            source_id, fresh_challans, response_duration_ms = await self.ingest.fetch(vehicle_number)
-        except Exception as e:
-            self.logger.exception(
-                "event=challan.refresh.fetch_failed vehicle_number=%s source_id=%s error=%s",
+
+        fetch_result: NormalizedChallanFetchResult = await self.ingest.fetch(vehicle_number)
+        if fetch_result.challan_fetch_failed:
+            self.logger.error(
+                "event=challan.refresh.fetch_failed vehicle_number=%s source_id=%s error_info=%s",
                 vehicle_number,
-                self.ingest.source_id,
-                str(e),
+                fetch_result.source_id,
+                fetch_result.challan_error_info,
             )
-            return diff
+            return ChallanRefreshResult(
+                diff=False,
+                challan_fetch_failed=True,
+                error_info=fetch_result.challan_error_info,
+                vendor_latency_ms=fetch_result.vendor_latency_ms,
+            )
+
+        source_id = fetch_result.source_id
+        fresh_challans = fetch_result.challans
+        response_duration_ms = fetch_result.vendor_latency_ms
         
         fresh_challans_map: dict[tuple[str, str], NormalizedChallan] = {
             (c.source_id, c.challan_number): c for c in fresh_challans
@@ -115,6 +147,12 @@ class ChallanService:
         fresh_challans_keys = set(fresh_challans_map.keys())
         existing_keys = set(existing_map.keys())
         
+        new_fresh_challans = [
+            challan
+            for challan in fresh_challans
+            if (challan.source_id, challan.challan_number) not in existing_keys
+        ]
+        
         to_delete = existing_keys - fresh_challans_keys
         
         classification_semaphore = asyncio.Semaphore(CLASSIFICATION_CONCURRENCY_LIMIT)
@@ -123,10 +161,11 @@ class ChallanService:
                 vehicle_number=vehicle_number,
                 challan=challan,
                 classification_semaphore=classification_semaphore,
-            ) for challan in fresh_challans)
+            ) for challan in new_fresh_challans)
         )
 
-        await self.repo.insert(challan_payloads)
+        if challan_payloads:
+            await self.repo.insert(challan_payloads)
         
         await self.repo.soft_delete(vehicle_number=vehicle_number, to_delete=to_delete)
         
@@ -146,17 +185,23 @@ class ChallanService:
                 if current is None or self._challan_payload_changed(current, payload):
                     diff = True
                     break
+                
         log_event(
             self.logger,
             "INFO",
             "challan.refresh.diff_applied",
             vehicle_number=vehicle_number,
             source_id=source_id,
-            upserts=len(challan_payloads),
+            inserts=len(challan_payloads),
             deletes=len(to_delete),
             changed=diff,
         )
-        return diff
+        return ChallanRefreshResult(
+            from_db_cache=False,
+            diff=diff,
+            net_changes=len(new_fresh_challans) - len(to_delete),
+            vendor_latency_ms=response_duration_ms,
+        )
 
 
     def _challan_payload_changed(self, current: Challan, payload: dict) -> bool:

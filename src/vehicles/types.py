@@ -66,3 +66,15 @@ class VehicleDTO:
     cubic_capacity: float | None
     owner_name: str | None
     rto_code: str | None
+    vendor_latency_ms: float | None = None
+    vendor_rc_latency_ms: float | None = None
+    rc_fetch_failed: bool = False
+    rc_error_info: str | None = None
+
+
+@dataclass(kw_only=True)
+class NormalizedRCFetchResult:
+    vehicle: NormalizedRC | None
+    vendor_rc_latency_ms: float | None = None
+    rc_fetch_failed: bool = False
+    rc_error_info: str | None = None

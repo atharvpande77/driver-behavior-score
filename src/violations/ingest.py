@@ -3,7 +3,11 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 import time
 
-from src.violations.types import NormalizedChallan, NormalizedChallanOffenseDetail
+from src.violations.types import (
+    NormalizedChallan,
+    NormalizedChallanFetchResult,
+    NormalizedChallanOffenseDetail,
+)
 
 from src.config import app_settings
 
@@ -17,7 +21,7 @@ class BaseChallanProvider(ABC):
         """Unique slug identifying this source. e.g. 'surepass_challan_advanced', 'maha_traffic'"""
  
     @abstractmethod
-    async def fetch(self, vehicle_number: str) -> list[NormalizedChallan]:
+    async def fetch(self, vehicle_number: str) -> NormalizedChallanFetchResult:
         """
         Fetch all challans for a vehicle and return in normalized shape.
         Must raise ProviderException on any failure — never return partial data silently.
@@ -38,12 +42,39 @@ class SurepassChallanAdvanced(BaseChallanProvider):
 
 
 class ChallanIngest:
+    MAX_ERROR_INFO_LENGTH = 512
+
     def __init__(self, client: httpx.AsyncClient):
         self.source_id = "surepass_v1_challan_advanced"
         self.client = client
-        
-        
-    async def fetch(self, vehicle_number: str) -> tuple[str, list[NormalizedChallan]]:
+
+    def _truncate_error_info(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if len(value) <= self.MAX_ERROR_INFO_LENGTH:
+            return value
+        return value[: self.MAX_ERROR_INFO_LENGTH - 3] + "..."
+
+    def _extract_error_info(self, exc: httpx.HTTPError) -> str | None:
+        response = getattr(exc, "response", None)
+        if response is None:
+            return self._truncate_error_info(str(exc) or None)
+
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                return self._truncate_error_info(
+                    payload.get("message")
+                    or payload.get("detail")
+                    or payload.get("error")
+                    or str(payload)
+                )
+            return self._truncate_error_info(str(payload))
+        except ValueError:
+            return self._truncate_error_info(response.text or str(exc) or None)
+
+    async def fetch(self, vehicle_number: str) -> NormalizedChallanFetchResult:
         start = time.perf_counter()
         try:
             response = await self.client.post(
@@ -56,13 +87,33 @@ class ChallanIngest:
                 }
             )
             response.raise_for_status()
-        except httpx.HTTPError:
-            raise
-        
+        except httpx.HTTPStatusError as e:
+            return NormalizedChallanFetchResult(
+                source_id=self.source_id,
+                challans=[],
+                vendor_latency_ms=(time.perf_counter() - start) * 1000,
+                challan_fetch_failed=True,
+                challan_error_info=self._extract_error_info(e),
+            )
+        except httpx.HTTPError as e:
+            return NormalizedChallanFetchResult(
+                source_id=self.source_id,
+                challans=[],
+                vendor_latency_ms=(time.perf_counter() - start) * 1000,
+                challan_fetch_failed=True,
+                challan_error_info=self._extract_error_info(e),
+            )
+
         duration_ms = (time.perf_counter() - start) * 1000
-        
+
         challans = response.json().get("data", {}).get("challan_details", [])
-        return self.source_id, [self._map(challan) for challan in challans], duration_ms
+        return NormalizedChallanFetchResult(
+            source_id=self.source_id,
+            challans=[self._map(challan) for challan in challans],
+            vendor_latency_ms=duration_ms,
+            challan_fetch_failed=False,
+            challan_error_info=None,
+        )
         
         
     def _map(self, raw_data: dict) -> NormalizedChallan:

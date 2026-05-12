@@ -1,8 +1,13 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Depends, Response, status
 
-from src.auth.dependencies import GetAPIKeyService, GetAuthService, GetCurrentDashboardUser
+from src.auth.dependencies import (
+    GetAPIKeyService,
+    GetAuthService,
+    GetCurrentDashboardUser,
+    disable_usage_collection,
+)
 from src.auth.schemas import (
     APIKeyResponse,
     CreateAPIKeyRequest,
@@ -16,7 +21,7 @@ from src.auth.schemas import (
 )
 
 
-router = APIRouter(tags=['auth'])
+router = APIRouter(tags=["auth"], dependencies=[Depends(disable_usage_collection)])
 
 
 @router.post(

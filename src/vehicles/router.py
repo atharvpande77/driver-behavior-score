@@ -5,6 +5,7 @@ from src.vehicles.dependencies import get_vehicle_service
 from src.vehicles.service import VehicleService
 from src.dependencies import ValidateVehicleNumber
 from src.vehicles.schemas import VehicleResponse
+from src.dependencies import GetUsageRecorder
 
 
 router = APIRouter(
@@ -19,7 +20,8 @@ router = APIRouter(
 )
 async def get_vehicle(
     vehicle_number: ValidateVehicleNumber,
+    usage: GetUsageRecorder,
     vehicle_svc: VehicleService = Depends(get_vehicle_service),
 ):
     """Get RC data for the given vehicle number."""
-    return await vehicle_svc.get_vehicle(vehicle_number)
+    return await vehicle_svc.get_vehicle(vehicle_number, usage=usage)

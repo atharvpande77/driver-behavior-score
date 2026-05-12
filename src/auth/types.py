@@ -1,4 +1,10 @@
+from enum import StrEnum
 from dataclasses import dataclass
+
+
+class AuthType(StrEnum):
+    DASHBOARD = "dashboard"
+    API_KEY = "api_key"
 
 
 @dataclass(frozen=True)

@@ -1,8 +1,10 @@
 # Global dependencies
 import httpx
+from dataclasses import asdict
 from fastapi import Depends, HTTPException, Request, status
 from typing import Annotated
 
+from src.types import UsageStatsPerVehicle
 from src.utils import serialize_vehicle_number
 
 
@@ -32,5 +34,29 @@ async def get_http_client(request: Request):
     return http_client
 
 
+class UsageRecorder:
+    def __init__(self, request: Request):
+        self.request = request
+        if not getattr(self.request.state, "collect_usage", True):
+            return
+        if not hasattr(self.request.state, "stats_per_vehicle"):
+            self.request.state.stats_per_vehicle = []
+
+    def store_usage(self, stats_per_vehicle: list[UsageStatsPerVehicle]) -> None:
+        if not getattr(self.request.state, "collect_usage", True):
+            return
+        self.request.state.stats_per_vehicle.extend(
+            asdict(stat) for stat in stats_per_vehicle
+        )
+
+    def add(self, stats_per_vehicle: list[UsageStatsPerVehicle]) -> None:
+        self.store_usage(stats_per_vehicle)
+
+
+def get_usage_recorder(request: Request) -> UsageRecorder:
+    return UsageRecorder(request)
+
+
 ValidateVehicleNumber = Annotated[str, Depends(validate_vehicle_number)]
 GetHttpClient = Annotated[httpx.AsyncClient, Depends(get_http_client)]
+GetUsageRecorder = Annotated[UsageRecorder, Depends(get_usage_recorder)]

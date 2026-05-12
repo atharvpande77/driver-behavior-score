@@ -6,6 +6,7 @@ from sqlalchemy import (
     Float,
     Numeric,
     SmallInteger,
+    BigInteger,
     String,
     UUID,
     TIMESTAMP,
@@ -290,4 +291,72 @@ class APIKey(Base):
     __table_args__ = (
         Index("ix_api_keys_created_by", "created_by"),
         Index("ix_api_keys_key_hash", "key_hash"),
+    )
+    
+
+class UsageEvent(Base):
+    __tablename__ = "usage_events"
+    
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    
+    request_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        server_default=text("gen_random_uuid()"),
+    )
+    
+    dashboard_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("dashboard_users.id"),
+        nullable=False,
+    )
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("api_keys.id"),
+        nullable=True,
+    )
+    auth_type: Mapped[str] = mapped_column(String(16), nullable=False) # Dashboard or API key
+    
+    endpoint: Mapped[str] = mapped_column(String(255))
+    method: Mapped[str] = mapped_column(String(8))
+    api_name: Mapped[str] = mapped_column(String(64))
+    usage_type: Mapped[str] = mapped_column(String(8)) # Single or batch
+    
+    vehicle_number: Mapped[str] = mapped_column(String(16))
+    risk_level: Mapped[str] = mapped_column(String(16))
+    from_db_cache: Mapped[bool] = mapped_column(Boolean)
+    challan_net_changes: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        server_default=text("0"),
+    )
+    
+    total_latency_ms: Mapped[float] = mapped_column(Float)
+    vendor_challan_latency_ms: Mapped[float] = mapped_column(Float, nullable=True)
+    vendor_rc_latency_ms: Mapped[float] = mapped_column(Float, nullable=True)
+    
+    is_success: Mapped[bool] = mapped_column(Boolean)
+    status: Mapped[str] = mapped_column(String(64))
+    error_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    http_status_code: Mapped[int] = mapped_column(Integer)
+    
+    ip_address: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(255))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_usage_dashboard_user_created", dashboard_user_id, created_at.desc()),
+        Index(
+            "idx_usage_api_key_created",
+            api_key_id,
+            created_at.desc(),
+            postgresql_where=text("api_key_id IS NOT NULL"),
+        ),
+        Index(
+            "idx_usage_vehicle_number",
+            vehicle_number,
+            created_at.desc(),
+            postgresql_where=text("vehicle_number IS NOT NULL"),
+        ),
+        Index("idx_usage_created", created_at.desc()),
     )

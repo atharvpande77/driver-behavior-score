@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, date
 from enum import Enum
 
+from src.models import DBSRecord
+
 class RiskLevel(str, Enum):
     SEVERE = "SEVERE"
     HIGH = "HIGH"
@@ -37,3 +39,13 @@ class DBSWithPremium:
     dbs_stats:        DBSStats
     base_premium:     int | None
     adjusted_premium: int | None
+
+
+@dataclass
+class DBSLookupResult:
+    record: DBSRecord
+    from_db_cache: bool
+    challan_net_changes: int = 0
+    challan_fetch_failed: bool = False
+    challan_error_info: str | None = None
+    vendor_challan_latency_ms: float | None = None
