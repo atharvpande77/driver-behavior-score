@@ -1,5 +1,5 @@
 from collections.abc import Mapping, Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID, NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import Request
@@ -11,9 +11,11 @@ from src.types import APINames
 from src.usage.repository import UsageEventRepository
 from src.usage.schemas import (
     UsageApiKeyStatsResponse,
+    UsagePeriodSummaryResponse,
     UsageRecentVehicleResponse,
+    UsageRequestCountPointResponse,
+    UsageRiskCategoryCountResponse,
     UsageSummaryResponse,
-    UsageWindowSummaryResponse,
 )
 from src.usage.types import UsageEventRequestContext, UsageStatus, UsageType
 
@@ -25,6 +27,11 @@ class UsageEventService:
         APINames.SCORE.value,
         APINames.VIOLATIONS.value,
         APINames.VEHICLES.value,
+    )
+    SUMMARY_RISK_API_NAMES: tuple[str, ...] = (
+        APINames.DASHBOARD_SINGLE_VEHICLE_LOOKUP.value,
+        APINames.DASHBOARD_BATCH_VEHICLE_LOOKUP.value,
+        APINames.SCORE.value,
     )
     API_KEY_API_NAMES: tuple[str, ...] = (
         APINames.SCORE.value,
@@ -127,12 +134,57 @@ class UsageEventService:
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        last_seven_days_start = now - timedelta(days=7)
+        last_12_months_start = self._month_start_offset(now, 11)
+
+        current_month_counts = await self.repo.get_window_counts(
+            dashboard_user_id,
+            start_at=month_start,
+            end_at=now,
+        )
+        last_request_at = await self.repo.get_last_request_timestamp(dashboard_user_id)
 
         return UsageSummaryResponse(
-            today=await self._build_window_summary(dashboard_user_id, today_start, now),
-            last_seven_days=await self._build_window_summary(dashboard_user_id, last_seven_days_start, now),
-            current_month=await self._build_window_summary(dashboard_user_id, month_start, now),
+            request_success_rate_pct=self._success_rate_pct(
+                current_month_counts["successful_requests"],
+                current_month_counts["total_requests"],
+            ),
+            total_calls_this_month=current_month_counts["total_requests"],
+            total_failed_requests_this_month=current_month_counts["failed_requests"],
+            last_request_at=last_request_at,
+            today=await self._build_period_summary(
+                dashboard_user_id=dashboard_user_id,
+                start_at=today_start,
+                end_at=now,
+                period_label="today",
+            ),
+            current_month=await self._build_period_summary(
+                dashboard_user_id=dashboard_user_id,
+                start_at=month_start,
+                end_at=now,
+                period_label="month-to-date",
+                daily_request_counts=await self._build_time_series(
+                    dashboard_user_id=dashboard_user_id,
+                    start_at=month_start,
+                    end_at=now,
+                    granularity="day",
+                    fill_start=month_start.date(),
+                    fill_end=now.date(),
+                ),
+            ),
+            last_12_months=await self._build_period_summary(
+                dashboard_user_id=dashboard_user_id,
+                start_at=last_12_months_start,
+                end_at=now,
+                period_label="rolling 12-month",
+                monthly_request_counts=await self._build_time_series(
+                    dashboard_user_id=dashboard_user_id,
+                    start_at=last_12_months_start,
+                    end_at=now,
+                    granularity="month",
+                    fill_start=last_12_months_start.date(),
+                    fill_end=month_start.date(),
+                ),
+            ),
         )
 
     async def get_api_key_usage(self, dashboard_user_id: UUID) -> list[UsageApiKeyStatsResponse]:
@@ -248,23 +300,200 @@ class UsageEventService:
             return None
         return client.host
 
-    async def _build_window_summary(
+    async def _build_period_summary(
         self,
+        *,
         dashboard_user_id: UUID,
         start_at: datetime,
         end_at: datetime,
-    ) -> UsageWindowSummaryResponse:
+        period_label: str,
+        daily_request_counts: list[UsageRequestCountPointResponse] | None = None,
+        monthly_request_counts: list[UsageRequestCountPointResponse] | None = None,
+    ) -> UsagePeriodSummaryResponse:
         counts = await self.repo.get_window_counts(
             dashboard_user_id,
             start_at=start_at,
             end_at=end_at,
         )
-        return UsageWindowSummaryResponse(
-            total_requests=int(counts["total_requests"]),
-            total_unique_vehicles=int(counts["total_unique_vehicles"]),
-            requests_by_api=self._zero_count_map(self.SUMMARY_API_NAMES, counts.get("requests_by_api", {})),
-            risk_category_counts=self._zero_count_map(self.RISK_CATEGORY_NAMES, counts.get("risk_category_counts", {})),
+        risk_rows = await self.repo.get_risk_distribution(
+            dashboard_user_id,
+            start_at=start_at,
+            end_at=end_at,
+            api_names=list(self.SUMMARY_RISK_API_NAMES),
         )
+        risk_distribution = self._zero_risk_distribution(risk_rows)
+        return UsagePeriodSummaryResponse(
+            total_requests=counts["total_requests"],
+            successful_requests=counts["successful_requests"],
+            failed_requests=counts["failed_requests"],
+            risk_category_distribution=risk_distribution,
+            summary_sentence=self._build_summary_sentence(risk_distribution, period_label),
+            daily_request_counts=daily_request_counts or [],
+            monthly_request_counts=monthly_request_counts or [],
+        )
+
+    async def _build_time_series(
+        self,
+        *,
+        dashboard_user_id: UUID,
+        start_at: datetime,
+        end_at: datetime,
+        granularity: str,
+        fill_start: date,
+        fill_end: date,
+    ) -> list[UsageRequestCountPointResponse]:
+        rows = await self.repo.get_time_series_counts(
+            dashboard_user_id,
+            start_at=start_at,
+            end_at=end_at,
+            granularity=granularity,
+        )
+        by_period: dict[date, dict[str, int]] = {}
+        for row in rows:
+            period_start = self._bucket_date(row["period_start"], granularity)
+            bucket = by_period.setdefault(
+                period_start,
+                {
+                    "total_requests": 0,
+                    "successful_requests": 0,
+                    "failed_requests": 0,
+                },
+            )
+            request_count = int(row["request_count"] or 0)
+            bucket["total_requests"] += request_count
+            if row["is_success"]:
+                bucket["successful_requests"] += request_count
+            else:
+                bucket["failed_requests"] += request_count
+
+        points: list[UsageRequestCountPointResponse] = []
+        if granularity == "day":
+            current = fill_start
+            while current <= fill_end:
+                bucket = by_period.get(
+                    current,
+                    {
+                        "total_requests": 0,
+                        "successful_requests": 0,
+                        "failed_requests": 0,
+                    },
+                )
+                points.append(
+                    UsageRequestCountPointResponse(
+                        period_start=current,
+                        total_requests=bucket["total_requests"],
+                        successful_requests=bucket["successful_requests"],
+                        failed_requests=bucket["failed_requests"],
+                    )
+                )
+                current += timedelta(days=1)
+            return points
+
+        current = fill_start
+        while current <= fill_end:
+            bucket = by_period.get(
+                current,
+                {
+                    "total_requests": 0,
+                    "successful_requests": 0,
+                    "failed_requests": 0,
+                },
+            )
+            points.append(
+                UsageRequestCountPointResponse(
+                    period_start=current,
+                    total_requests=bucket["total_requests"],
+                    successful_requests=bucket["successful_requests"],
+                    failed_requests=bucket["failed_requests"],
+                )
+            )
+            current = self._next_month_start(current)
+        return points
+
+    def _zero_risk_distribution(self, rows: list[dict]) -> list[UsageRiskCategoryCountResponse]:
+        counts = {risk: 0 for risk in self.RISK_CATEGORY_NAMES}
+        for row in rows:
+            counts[str(row["risk_level"])] = int(row["request_count"] or 0)
+
+        return [
+            UsageRiskCategoryCountResponse(risk_level=risk, request_count=counts[risk])
+            for risk in self.RISK_CATEGORY_NAMES
+        ]
+
+    def _build_summary_sentence(
+        self,
+        risk_distribution: list[UsageRiskCategoryCountResponse],
+        period_label: str,
+    ) -> str:
+        total = sum(item.request_count for item in risk_distribution)
+        if total == 0:
+            return f"No dashboard lookup or score requests were recorded for {self._sample_phrase(period_label)}"
+
+        ordered = sorted(
+            (item for item in risk_distribution if item.request_count > 0),
+            key=lambda item: item.request_count,
+            reverse=True,
+        )
+        if not ordered:
+            return f"No dashboard lookup or score requests were recorded for {self._sample_phrase(period_label)}"
+
+        top = ordered[0]
+        if len(ordered) > 1 and (top.request_count + ordered[1].request_count) / total >= 0.5:
+            phrase = (
+                f"{self._risk_sentence_label(top.risk_level)} and "
+                f"{self._risk_sentence_label(ordered[1].risk_level)} vehicles continue to make up the majority "
+                f"of {self._sample_phrase(period_label)}."
+            )
+        else:
+            phrase = (
+                f"{self._risk_sentence_label(top.risk_level)} vehicles continue to make up the majority "
+                f"of {self._sample_phrase(period_label)}."
+            )
+        return phrase[:1].upper() + phrase[1:]
+
+    def _sample_phrase(self, period_label: str) -> str:
+        if period_label == "today":
+            return "today's sample"
+        if period_label == "month-to-date":
+            return "the month-to-date sample"
+        if period_label == "rolling 12-month":
+            return "the rolling 12-month sample"
+        return f"the {period_label} sample"
+
+    def _risk_sentence_label(self, risk_level: str) -> str:
+        labels = {
+            "SEVERE": "severe-risk",
+            "HIGH": "high-risk",
+            "MODERATE": "moderate-risk",
+            "LOW": "low",
+            "EXCELLENT": "excellent-record",
+            "EXEMPLARY": "clean-record",
+            "UNKNOWN": "unclassified",
+        }
+        return labels.get(risk_level, str(risk_level).lower())
+
+    def _success_rate_pct(self, successful_requests: int, total_requests: int) -> float:
+        if total_requests <= 0:
+            return 0.0
+        return round((successful_requests / total_requests) * 100, 2)
+
+    def _bucket_date(self, bucket_start: datetime, granularity: str) -> date:
+        if granularity == "day":
+            return bucket_start.date()
+        return bucket_start.date().replace(day=1)
+
+    def _month_start_offset(self, now: datetime, months_back: int) -> datetime:
+        year = now.year
+        month = now.month - months_back
+        while month <= 0:
+            month += 12
+            year -= 1
+        return datetime(year, month, 1, tzinfo=timezone.utc)
+
+    def _next_month_start(self, value: date) -> date:
+        year = value.year + (1 if value.month == 12 else 0)
+        month = 1 if value.month == 12 else value.month + 1
+        return date(year, month, 1)
 
     def _zero_count_map(
         self,

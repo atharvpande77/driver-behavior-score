@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UsageRecentVehicleResponse(BaseModel):
@@ -10,17 +10,36 @@ class UsageRecentVehicleResponse(BaseModel):
     queried_at: datetime
 
 
-class UsageWindowSummaryResponse(BaseModel):
+class UsageRiskCategoryCountResponse(BaseModel):
+    risk_level: str
+    request_count: int
+
+
+class UsageRequestCountPointResponse(BaseModel):
+    period_start: date
     total_requests: int
-    total_unique_vehicles: int
-    requests_by_api: dict[str, int]
-    risk_category_counts: dict[str, int]
+    successful_requests: int
+    failed_requests: int
+
+
+class UsagePeriodSummaryResponse(BaseModel):
+    total_requests: int
+    successful_requests: int
+    failed_requests: int
+    risk_category_distribution: list[UsageRiskCategoryCountResponse]
+    summary_sentence: str
+    daily_request_counts: list[UsageRequestCountPointResponse] = Field(default_factory=list)
+    monthly_request_counts: list[UsageRequestCountPointResponse] = Field(default_factory=list)
 
 
 class UsageSummaryResponse(BaseModel):
-    today: UsageWindowSummaryResponse
-    last_seven_days: UsageWindowSummaryResponse
-    current_month: UsageWindowSummaryResponse
+    request_success_rate_pct: float
+    total_calls_this_month: int
+    total_failed_requests_this_month: int
+    last_request_at: datetime | None
+    today: UsagePeriodSummaryResponse
+    current_month: UsagePeriodSummaryResponse
+    last_12_months: UsagePeriodSummaryResponse
 
 
 class UsageApiKeyStatsResponse(BaseModel):

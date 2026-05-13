@@ -70,41 +70,73 @@ class UsageEventRepository(BaseDBRepository):
         totals_result = await self.db.execute(
             select(
                 func.count(distinct(UsageEvent.request_id)).label("total_requests"),
-                func.count(distinct(UsageEvent.vehicle_number)).label("total_unique_vehicles"),
+                func.count(distinct(UsageEvent.request_id)).filter(UsageEvent.is_success.is_(True)).label("successful_requests"),
+                func.count(distinct(UsageEvent.request_id)).filter(UsageEvent.is_success.is_(False)).label("failed_requests"),
             ).where(*filters)
         )
         totals = totals_result.mappings().one()
 
-        api_result = await self.db.execute(
+        return {
+            "total_requests": int(totals["total_requests"] or 0),
+            "successful_requests": int(totals["successful_requests"] or 0),
+            "failed_requests": int(totals["failed_requests"] or 0),
+        }
+
+    async def get_time_series_counts(
+        self,
+        dashboard_user_id: UUID,
+        *,
+        start_at: datetime,
+        end_at: datetime,
+        granularity: str,
+    ) -> list[dict]:
+        bucket_start = func.date_trunc(granularity, UsageEvent.created_at).label("period_start")
+        result = await self.db.execute(
             select(
-                UsageEvent.api_name.label("api_name"),
+                bucket_start,
+                UsageEvent.is_success.label("is_success"),
                 func.count(distinct(UsageEvent.request_id)).label("request_count"),
             )
-            .where(*filters)
-            .group_by(UsageEvent.api_name)
+            .where(
+                UsageEvent.dashboard_user_id == dashboard_user_id,
+                UsageEvent.created_at >= start_at,
+                UsageEvent.created_at < end_at,
+            )
+            .group_by(bucket_start, UsageEvent.is_success)
+            .order_by(bucket_start.asc())
         )
+        return list(result.mappings().all())
 
-        risk_result = await self.db.execute(
+    async def get_risk_distribution(
+        self,
+        dashboard_user_id: UUID,
+        *,
+        start_at: datetime,
+        end_at: datetime,
+        api_names: list[str],
+    ) -> list[dict]:
+        result = await self.db.execute(
             select(
                 UsageEvent.risk_level.label("risk_level"),
                 func.count().label("request_count"),
             )
-            .where(*filters)
+            .where(
+                UsageEvent.dashboard_user_id == dashboard_user_id,
+                UsageEvent.created_at >= start_at,
+                UsageEvent.created_at < end_at,
+                UsageEvent.api_name.in_(api_names),
+            )
             .group_by(UsageEvent.risk_level)
         )
+        return list(result.mappings().all())
 
-        return {
-            "total_requests": int(totals["total_requests"] or 0),
-            "total_unique_vehicles": int(totals["total_unique_vehicles"] or 0),
-            "requests_by_api": {
-                row["api_name"]: int(row["request_count"] or 0)
-                for row in api_result.mappings().all()
-            },
-            "risk_category_counts": {
-                row["risk_level"]: int(row["request_count"] or 0)
-                for row in risk_result.mappings().all()
-            },
-        }
+    async def get_last_request_timestamp(self, dashboard_user_id: UUID) -> datetime | None:
+        result = await self.db.execute(
+            select(func.max(UsageEvent.created_at)).where(
+                UsageEvent.dashboard_user_id == dashboard_user_id,
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def list_owned_api_keys(self, dashboard_user_id: UUID) -> list[dict]:
         result = await self.db.execute(
