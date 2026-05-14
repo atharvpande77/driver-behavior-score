@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import distinct, func, insert, select
@@ -61,10 +61,13 @@ class UsageEventRepository(BaseDBRepository):
         start_at: datetime,
         end_at: datetime,
     ) -> dict:
+        start_at = start_at.astimezone(timezone.utc).replace(tzinfo=None)
+        end_at = end_at.astimezone(timezone.utc).replace(tzinfo=None)
+        created_at_utc = func.timezone("UTC", UsageEvent.created_at)
         filters = (
             UsageEvent.dashboard_user_id == dashboard_user_id,
-            UsageEvent.created_at >= start_at,
-            UsageEvent.created_at < end_at,
+            created_at_utc >= start_at,
+            created_at_utc < end_at,
         )
 
         totals_result = await self.db.execute(
@@ -90,7 +93,10 @@ class UsageEventRepository(BaseDBRepository):
         end_at: datetime,
         granularity: str,
     ) -> list[dict]:
-        bucket_start = func.date_trunc(granularity, UsageEvent.created_at).label("period_start")
+        start_at = start_at.astimezone(timezone.utc).replace(tzinfo=None)
+        end_at = end_at.astimezone(timezone.utc).replace(tzinfo=None)
+        created_at_utc = func.timezone("UTC", UsageEvent.created_at)
+        bucket_start = func.date_trunc(granularity, created_at_utc).label("period_start")
         result = await self.db.execute(
             select(
                 bucket_start,
@@ -99,8 +105,8 @@ class UsageEventRepository(BaseDBRepository):
             )
             .where(
                 UsageEvent.dashboard_user_id == dashboard_user_id,
-                UsageEvent.created_at >= start_at,
-                UsageEvent.created_at < end_at,
+                created_at_utc >= start_at,
+                created_at_utc < end_at,
             )
             .group_by(bucket_start, UsageEvent.is_success)
             .order_by(bucket_start.asc())
@@ -115,6 +121,9 @@ class UsageEventRepository(BaseDBRepository):
         end_at: datetime,
         api_names: list[str],
     ) -> list[dict]:
+        start_at = start_at.astimezone(timezone.utc).replace(tzinfo=None)
+        end_at = end_at.astimezone(timezone.utc).replace(tzinfo=None)
+        created_at_utc = func.timezone("UTC", UsageEvent.created_at)
         result = await self.db.execute(
             select(
                 UsageEvent.risk_level.label("risk_level"),
@@ -122,8 +131,8 @@ class UsageEventRepository(BaseDBRepository):
             )
             .where(
                 UsageEvent.dashboard_user_id == dashboard_user_id,
-                UsageEvent.created_at >= start_at,
-                UsageEvent.created_at < end_at,
+                created_at_utc >= start_at,
+                created_at_utc < end_at,
                 UsageEvent.api_name.in_(api_names),
             )
             .group_by(UsageEvent.risk_level)
