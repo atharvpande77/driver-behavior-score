@@ -11,6 +11,8 @@ from src.types import APINames
 from src.usage.repository import UsageEventRepository
 from src.usage.schemas import (
     UsageApiKeyStatsResponse,
+    UsageApiKeyUsageResponse,
+    UsageApiRequestCountResponse,
     UsagePeriodSummaryResponse,
     UsageRecentVehicleResponse,
     UsageRequestCountPointResponse,
@@ -187,36 +189,68 @@ class UsageEventService:
             ),
         )
 
-    async def get_api_key_usage(self, dashboard_user_id: UUID) -> list[UsageApiKeyStatsResponse]:
+    async def get_api_key_usage(self, dashboard_user_id: UUID) -> UsageApiKeyUsageResponse:
         owned_keys = await self.repo.list_owned_api_keys(dashboard_user_id)
-        usage_counts = await self.repo.get_api_key_request_counts(
+        usage_counts = await self.repo.get_api_key_usage_counts(
             dashboard_user_id,
             api_names=list(self.API_KEY_API_NAMES),
         )
 
-        counts_by_key: dict[UUID, dict[str, int]] = {}
-        totals_by_key: dict[UUID, int] = {}
+        api_totals = self._zero_nested_request_counts(self.API_KEY_API_NAMES)
+        counts_by_key: dict[UUID, dict[str, dict[str, int]]] = {}
         for row in usage_counts:
             api_key_id = row["api_key_id"]
             api_name = row["api_name"]
+            is_success = bool(row["is_success"])
             request_count = int(row["request_count"] or 0)
-            counts_by_key.setdefault(api_key_id, self._zero_count_map(self.API_KEY_API_NAMES))
-            counts_by_key[api_key_id][api_name] = request_count
-            totals_by_key[api_key_id] = totals_by_key.get(api_key_id, 0) + request_count
+            api_bucket = api_totals[api_name]
+            key_bucket = counts_by_key.setdefault(api_key_id, self._zero_nested_request_counts(self.API_KEY_API_NAMES))
 
-        return [
-            UsageApiKeyStatsResponse(
-                id=row["id"],
-                name=row["name"],
-                key_prefix=row["key_prefix"],
-                is_active=row["is_active"],
-                created_at=row.get("created_at"),
-                last_used_at=row.get("last_used_at"),
-                total_requests=totals_by_key.get(row["id"], 0),
-                requests_by_api=self._zero_count_map(self.API_KEY_API_NAMES, counts_by_key.get(row["id"], {})),
+            api_bucket["total_requests"] += request_count
+            key_bucket[api_name]["total_requests"] += request_count
+
+            if is_success:
+                api_bucket["successful_requests"] += request_count
+                key_bucket[api_name]["successful_requests"] += request_count
+            else:
+                api_bucket["failed_requests"] += request_count
+                key_bucket[api_name]["failed_requests"] += request_count
+
+        api_key_items: list[UsageApiKeyStatsResponse] = []
+        total_requests = 0
+        successful_requests = 0
+        failed_requests = 0
+
+        for row in owned_keys:
+            key_counts = counts_by_key.get(row["id"], self._zero_nested_request_counts(self.API_KEY_API_NAMES))
+            key_total = sum(bucket["total_requests"] for bucket in key_counts.values())
+            key_success = sum(bucket["successful_requests"] for bucket in key_counts.values())
+            key_failed = sum(bucket["failed_requests"] for bucket in key_counts.values())
+            total_requests += key_total
+            successful_requests += key_success
+            failed_requests += key_failed
+            api_key_items.append(
+                UsageApiKeyStatsResponse(
+                    id=row["id"],
+                    name=row["name"],
+                    key_prefix=row["key_prefix"],
+                    is_active=row["is_active"],
+                    created_at=row.get("created_at"),
+                    last_used_at=row.get("last_used_at"),
+                    total_requests=key_total,
+                    successful_requests=key_success,
+                    failed_requests=key_failed,
+                    requests_by_api=self._to_api_request_count_rows(key_counts),
+                )
             )
-            for row in owned_keys
-        ]
+
+        return UsageApiKeyUsageResponse(
+            total_requests=total_requests,
+            successful_requests=successful_requests,
+            failed_requests=failed_requests,
+            requests_by_api=self._to_api_request_count_rows(api_totals),
+            api_keys=api_key_items,
+        )
 
     def _build_rows(
         self,
@@ -507,3 +541,27 @@ class UsageEventService:
         for key in ordered_keys:
             counts.setdefault(key, 0)
         return counts
+
+    def _zero_nested_request_counts(self, ordered_keys: Sequence[str]) -> dict[str, dict[str, int]]:
+        return {
+            key: {
+                "total_requests": 0,
+                "successful_requests": 0,
+                "failed_requests": 0,
+            }
+            for key in ordered_keys
+        }
+
+    def _to_api_request_count_rows(
+        self,
+        counts_by_api: Mapping[str, Mapping[str, int]],
+    ) -> list[UsageApiRequestCountResponse]:
+        return [
+            UsageApiRequestCountResponse(
+                api_name=api_name,
+                total_requests=int(counts_by_api.get(api_name, {}).get("total_requests", 0)),
+                successful_requests=int(counts_by_api.get(api_name, {}).get("successful_requests", 0)),
+                failed_requests=int(counts_by_api.get(api_name, {}).get("failed_requests", 0)),
+            )
+            for api_name in self.API_KEY_API_NAMES
+        ]

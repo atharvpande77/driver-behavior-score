@@ -22,6 +22,13 @@ class UsageRequestCountPointResponse(BaseModel):
     failed_requests: int
 
 
+class UsageApiRequestCountResponse(BaseModel):
+    api_name: str
+    total_requests: int
+    successful_requests: int
+    failed_requests: int
+
+
 class UsagePeriodSummaryResponse(BaseModel):
     total_requests: int
     successful_requests: int
@@ -52,4 +59,14 @@ class UsageApiKeyStatsResponse(BaseModel):
     created_at: datetime | None = None
     last_used_at: datetime | None = None
     total_requests: int
-    requests_by_api: dict[str, int]
+    successful_requests: int
+    failed_requests: int
+    requests_by_api: list[UsageApiRequestCountResponse]
+
+
+class UsageApiKeyUsageResponse(BaseModel):
+    total_requests: int
+    successful_requests: int
+    failed_requests: int
+    requests_by_api: list[UsageApiRequestCountResponse]
+    api_keys: list[UsageApiKeyStatsResponse]

@@ -69,6 +69,17 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def add_cache_control_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["Surrogate-Control"] = "no-store"
+    return response
+
+
+
 app.include_router(score_router, prefix=f"{VERSIONED_BASE_PREFIX}/score")
 app.include_router(violations_router, prefix=f"{VERSIONED_BASE_PREFIX}/violations")
 app.include_router(vehicles_router, prefix=f"{VERSIONED_BASE_PREFIX}/vehicles")

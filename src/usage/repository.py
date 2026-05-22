@@ -162,7 +162,7 @@ class UsageEventRepository(BaseDBRepository):
         )
         return list(result.mappings().all())
 
-    async def get_api_key_request_counts(
+    async def get_api_key_usage_counts(
         self,
         dashboard_user_id: UUID,
         *,
@@ -172,6 +172,7 @@ class UsageEventRepository(BaseDBRepository):
             select(
                 UsageEvent.api_key_id.label("api_key_id"),
                 UsageEvent.api_name.label("api_name"),
+                UsageEvent.is_success.label("is_success"),
                 func.count(distinct(UsageEvent.request_id)).label("request_count"),
             )
             .where(
@@ -183,6 +184,6 @@ class UsageEventRepository(BaseDBRepository):
             stmt = stmt.where(UsageEvent.api_name.in_(api_names))
 
         result = await self.db.execute(
-            stmt.group_by(UsageEvent.api_key_id, UsageEvent.api_name)
+            stmt.group_by(UsageEvent.api_key_id, UsageEvent.api_name, UsageEvent.is_success)
         )
         return list(result.mappings().all())

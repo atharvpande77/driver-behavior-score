@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from src.auth.dependencies import GetCurrentDashboardUser
 from src.usage.dependencies import GetUsageEventService
 from src.usage.schemas import (
-    UsageApiKeyStatsResponse,
+    UsageApiKeyUsageResponse,
     UsageRecentVehicleResponse,
     UsageSummaryResponse,
 )
@@ -36,7 +36,7 @@ async def usage_summary(
 
 @router.get(
     "/api-keys",
-    response_model=list[UsageApiKeyStatsResponse],
+    response_model=UsageApiKeyUsageResponse,
 )
 async def api_key_usage(
     current_user: GetCurrentDashboardUser,
