@@ -171,6 +171,8 @@ class AuthService:
         return user
 
 class APIKeyService:
+    MAX_ACTIVE_KEYS_PER_USER = 5
+
     def __init__(self, *, repo: APIKeyRepository):
         self.repo = repo
         self.logger = get_logger(__name__)
@@ -206,6 +208,21 @@ class APIKeyService:
 
     async def create_key(self, user_id: uuid.UUID, name: str) -> tuple[str, APIKey]:
         log_event(self.logger, "INFO", "auth.api_key.create.attempt", user_id=user_id)
+        active_key_count = await self.repo.count_active_by_user(user_id)
+        if active_key_count >= self.MAX_ACTIVE_KEYS_PER_USER:
+            log_event(
+                self.logger,
+                "WARNING",
+                "auth.api_key.create.limit_reached",
+                user_id=user_id,
+                active_key_count=active_key_count,
+                limit=self.MAX_ACTIVE_KEYS_PER_USER,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"You can have at most {self.MAX_ACTIVE_KEYS_PER_USER} active API keys.",
+            )
+
         raw_key = f"dbs_sk_{secrets.token_urlsafe(32)}"
         
         api_key = await self.repo.insert(

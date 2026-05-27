@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import uuid
 
-from sqlalchemy import insert, select
+from sqlalchemy import func, insert, select
 
 from src.database import BaseDBRepository
 from src.models import APIKey, DashboardUser
@@ -36,6 +36,16 @@ class AuthRepository(BaseDBRepository):
 
 
 class APIKeyRepository(BaseDBRepository):
+    async def count_active_by_user(self, user_id: uuid.UUID) -> int:
+        result = await self.db.execute(
+            select(func.count(APIKey.id))
+            .where(
+                APIKey.created_by == user_id,
+                APIKey.is_active.is_(True),
+            )
+        )
+        return int(result.scalar_one() or 0)
+
     async def get_by_hash(self, key_hash: str) -> APIKey | None:
         result = await self.db.execute(
             select(APIKey).where(APIKey.key_hash == key_hash)
