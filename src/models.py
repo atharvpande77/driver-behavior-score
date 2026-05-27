@@ -360,3 +360,12 @@ class UsageEvent(Base):
         ),
         Index("idx_usage_created", created_at.desc()),
     )
+
+
+class TelematicsEvent(Base):
+    __tablename__ = "telematics_events"
+    
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    
+    raw_packet: Mapped[str] = mapped_column(Text)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

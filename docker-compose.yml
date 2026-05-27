@@ -47,6 +47,23 @@ services:
     networks:
       - backend
 
+
+  telematics:
+    build:
+      context: .
+      dockerfile: telematics/Dockerfile
+    container_name: dbs_telematics
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
