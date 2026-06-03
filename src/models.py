@@ -368,4 +368,7 @@ class TelematicsEvent(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     
     raw_packet: Mapped[str] = mapped_column(Text)
+    source_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
