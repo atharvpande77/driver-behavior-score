@@ -24,4 +24,4 @@ services:
       - ./telematics:/app/telematics
     env_file:
       - .env
-    command: python -m telematics.listener
+    command: python -m telematics.main

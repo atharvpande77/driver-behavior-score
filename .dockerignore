@@ -10,3 +10,4 @@ tests/
 .pytest_cache/
 .codex
 handoff.md
+tcp_protocols.md

@@ -2,8 +2,10 @@ import asyncio
 import logging
 import ipaddress
 from contextlib import suppress
+from functools import partial
 
-from telematics.database import close_pool, init_pool, store_raw_packet
+from telematics.database import close_pool, init_pool
+from telematics.service import TelematicsService
 
 
 HOST = "0.0.0.0"
@@ -30,6 +32,8 @@ def _is_loopback_peer(peername: object) -> bool:
 async def handle_client(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
+    *,
+    service: TelematicsService,
 ) -> None:
     peername = writer.get_extra_info("peername")
 
@@ -50,7 +54,11 @@ async def handle_client(
 
     try:
         while packet := await reader.read(READ_SIZE_BYTES):
-            await store_raw_packet(packet, source_ip=source_ip, source_port=source_port)
+            await service.process_packet(
+                packet,
+                source_ip=source_ip,
+                source_port=source_port,
+            )
     except Exception:
         logger.exception("Telematics client handling failed: %s", peername)
     finally:
@@ -61,9 +69,12 @@ async def handle_client(
 
 
 async def run_server() -> None:
-    await init_pool()
+    pool = await init_pool()
+    service = TelematicsService(pool)
 
-    server = await asyncio.start_server(handle_client, HOST, PORT)
+    server = await asyncio.start_server(
+        partial(handle_client, service=service), HOST, PORT
+    )
     sockets = ", ".join(str(sock.getsockname()) for sock in server.sockets or [])
     logger.info("Telematics listener started on %s", sockets)
 

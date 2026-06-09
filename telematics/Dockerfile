@@ -19,4 +19,4 @@ EXPOSE 8002
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import socket; s=socket.create_connection(('127.0.0.1', 8002), 3); s.close()"
 
-CMD ["python", "-m", "telematics.listener"]
+CMD ["python", "-m", "telematics.main"]

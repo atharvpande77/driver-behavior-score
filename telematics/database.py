@@ -39,20 +39,4 @@ async def close_pool() -> None:
         _pool = None
 
 
-async def store_raw_packet(
-    packet: bytes,
-    source_ip: str | None = None,
-    source_port: int | None = None,
-) -> None:
-    pool = await init_pool()
-    raw_packet = packet.decode("utf-8", errors="replace").replace("\x00", "\\x00")
 
-    await pool.execute(
-        """
-        INSERT INTO telematics_events (raw_packet, source_ip, source_port)
-        VALUES ($1, $2, $3)
-        """,
-        raw_packet,
-        source_ip,
-        source_port,
-    )
