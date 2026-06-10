@@ -132,6 +132,7 @@ class TelematicsService:
         source_port: int | None = None,
     ) -> None:
         raw_packet = packet.decode("utf-8", errors="replace").replace("\x00", "\\x00")
+        raw_packet = raw_packet.strip()
 
         packet_data = self.validate_ais140_packet(raw_packet)
         if packet_data is None:
