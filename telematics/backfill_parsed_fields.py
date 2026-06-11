@@ -190,7 +190,7 @@ async def backfill(pool) -> None:
                                     fields[43],
                                     fields[44],
                                     fields[45],
-                                    safe_int(fields[46]),
+                                    fields[46],
                                     safe_int(fields[47]),
                                     safe_float(fields[48]),
                                     safe_int(fields[49]),
