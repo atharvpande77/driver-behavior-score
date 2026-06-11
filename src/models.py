@@ -370,8 +370,8 @@ class TelematicsEvent(Base):
     raw_packet: Mapped[str] = mapped_column(Text)
     
     # DP packet fields
-    header: Mapped[str] = mapped_column(String(8))
-    vendor_id: Mapped[str] = mapped_column(String(16), nullable=True)
+    header: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    vendor_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
     firmware_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
     packet_type: Mapped[str | None] = mapped_column(String(4), nullable=True)
     alert_id: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
