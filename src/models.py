@@ -421,6 +421,7 @@ class TelematicsEvent(Base):
     frame_number: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="Sequence number (1-999999)")
     ota_command: Mapped[str | None] = mapped_column(String(64), nullable=True)
     checksum: Mapped[str | None] = mapped_column(String(8), nullable=True, comment="32-bit CRC")
+    checksum_matched: Mapped[bool | None] = mapped_column(Boolean, nullable=True, comment="True if computed checksum matches the received checksum")
     
     source_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_port: Mapped[int | None] = mapped_column(Integer, nullable=True)

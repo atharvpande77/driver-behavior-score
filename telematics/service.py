@@ -1,4 +1,5 @@
 from telematics.utils import (
+    compute_checksum_matched,
     get_min_fields_for_header,
     parse_dp_datetime,
     parse_signed_coord,
@@ -26,10 +27,15 @@ class TelematicsService:
         if not min_fields or len(fields) < min_fields:
             return None
 
+        # Extract the received checksum (last field for DP packets) and verify
+        received_checksum = fields[53] if header == 'DP' and len(fields) > 53 else None
+        checksum_matched = compute_checksum_matched(raw_packet, received_checksum)
+
         return {
             "header": header,
             "fields": fields,
             "raw_packet": raw_packet,
+            "checksum_matched": checksum_matched,
         }
 
 
@@ -50,6 +56,7 @@ class TelematicsService:
         *,
         fields: list[str],
         header: str,
+        checksum_matched: bool | None = None,
         source_ip: str | None = None,
         source_port: int | None = None,
     ):
@@ -107,6 +114,7 @@ class TelematicsService:
                 'frame_number':             safe_int(fields[51]),
                 'ota_command':              fields[52] or None,
                 'checksum':                 fields[53] if len(fields) > 53 else None,
+                'checksum_matched':          checksum_matched,
             }
 
             cols = ', '.join(dp_params.keys()) + ', raw_packet, source_ip, source_port'
@@ -149,6 +157,7 @@ class TelematicsService:
             packet_data['raw_packet'],
             fields=fields,
             header=header,
+            checksum_matched=packet_data['checksum_matched'],
             source_ip=source_ip,
             source_port=source_port,
         )

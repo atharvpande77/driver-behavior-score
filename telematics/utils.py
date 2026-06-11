@@ -1,4 +1,5 @@
 from datetime import datetime
+import ctypes
 
 
 def get_min_fields_for_header(header: str) -> int | None:
@@ -50,3 +51,39 @@ def safe_bool(value: str) -> bool | None:
         return bool(int(value))
     except (ValueError, TypeError):
         return None
+
+
+def crc32_ais140(msg: str) -> int:
+    """Python port of the C CRC32Bit function used in AIS-140 devices.
+
+    Processes bytes at indices 1 through len(msg)-1 (i.e. skips the first
+    character, which is the leading '$', and processes up to and including
+    the last character).
+    Polynomial: 0xEDB88320 (reversed CRC-32/ISO-HDLC).
+    Returns the 32-bit unsigned CRC value.
+    """
+    crc = ctypes.c_uint32(0xFFFFFFFF)
+    for ch in msg[1:]:
+        byte = ord(ch)
+        crc.value ^= byte
+        for _ in range(8):
+            mask = ctypes.c_int32(-(crc.value & 1)).value  # signed mask: 0 or 0xFFFFFFFF
+            crc.value = (crc.value >> 1) ^ (0xEDB88320 & mask)
+    return (~crc.value) & 0xFFFFFFFF
+
+
+def compute_checksum_matched(raw_packet: str, received_checksum: str | None) -> bool | None:
+    """Compute the AIS-140 CRC-32 over *raw_packet* and compare it against
+    *received_checksum* (the hex string stored in the last packet field).
+
+    Returns True/False on match/mismatch, or None if *received_checksum* is
+    absent or cannot be parsed.
+    """
+    if not received_checksum:
+        return None
+    try:
+        expected = int(received_checksum, 16)
+    except ValueError:
+        return None
+    computed = crc32_ais140(raw_packet)
+    return computed == expected
