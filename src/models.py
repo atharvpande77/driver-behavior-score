@@ -427,3 +427,94 @@ class TelematicsEvent(Base):
     source_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
     
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class VehicleTrip(Base):
+    __tablename__ = "vehicle_trips"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        init=False,
+        server_default=text("gen_random_uuid()"),
+    )
+    vehicle_reg_no: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
+    imei: Mapped[str | None] = mapped_column(String(15), nullable=True, default=None)
+    status: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="open",
+        server_default=text("'open'"),
+    )
+
+    # Trip boundaries (written by detector)
+    start_event_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, default=None)
+    end_event_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, default=None)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    start_lat: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    start_lon: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    end_lat: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    end_lon: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    total_distance_km: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    total_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    max_speed_kmph: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    min_speed_kmph: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    avg_speed_kmph: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+
+    # Day/Night — computed inline by the trip detector (night = 20:00–05:00)
+    day_distance_km: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    night_distance_km: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    day_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    night_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+
+    # Harsh events — computed inline by the trip detector
+    harsh_acceleration_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    harsh_braking_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    harsh_turning_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+
+    # Urban/Rural enrichment (Stage 2B) — NULL until enriched
+    urban_distance_km: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    rural_distance_km: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    urban_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    rural_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    urban_rural_method: Mapped[str | None] = mapped_column(String(16), nullable=True, default=None)
+
+    # Terrain enrichment (Stage 2C) — NULL until enriched
+    elevation_gain_m: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    elevation_loss_m: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    hilly_distance_km: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    flat_distance_km: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    terrain_type: Mapped[str | None] = mapped_column(String(8), nullable=True, default=None)
+
+    # Parking enrichment (Stage 2D) — NULL until enriched
+    parked_before_trip_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), init=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), init=False, onupdate=func.now(), nullable=True
+    )
+
+    __table_args__ = (
+        Index("ix_vehicle_trips_vehicle_started", "vehicle_reg_no", "started_at"),
+        Index("ix_vehicle_trips_imei_started", "imei", "started_at"),
+        Index("ix_vehicle_trips_status", "status"),
+    )
+
+
+class TelematicsTripCursor(Base):
+    __tablename__ = "telematics_trip_cursor"
+
+    imei: Mapped[str] = mapped_column(String(15), primary_key=True)
+    last_processed_event_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    open_trip_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, default=None
+    )
+    last_odometer_km: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), init=False, onupdate=func.now(), nullable=True
+    )

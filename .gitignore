@@ -18,3 +18,7 @@ handoff.md
 .antigravitycli
 
 tcp_protocols.md
+
+test_sender
+trip_detector_plan.md
+trip_worker_plan.md

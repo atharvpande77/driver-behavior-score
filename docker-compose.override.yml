@@ -25,3 +25,21 @@ services:
     env_file:
       - .env
     command: python -m telematics.main
+
+  workers:
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    command: python -m workers.main
+
+  test_sender:
+    build:
+      context: ./test_sender
+      dockerfile: Dockerfile
+    container_name: dbs_test_sender
+    restart: "no"
+    depends_on:
+      - telematics
+    networks:
+      - backend

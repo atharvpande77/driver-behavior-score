@@ -56,6 +56,7 @@ class TelematicsService:
         *,
         fields: list[str],
         header: str,
+        vehicle_reg_no: str,
         checksum_matched: bool | None = None,
         source_ip: str | None = None,
         source_port: int | None = None,
@@ -70,7 +71,7 @@ class TelematicsService:
                 'alert_id':                 safe_int(fields[4]),
                 'packet_status':            fields[5],
                 'imei':                     fields[6],
-                'vehicle_reg_no':           fields[7],
+                'vehicle_reg_no':           vehicle_reg_no,
                 'gps_fix':                  safe_bool(fields[8]),
                 'gps_datetime':             parse_dp_datetime(fields[9], fields[10]),
                 'latitude':                 parse_signed_coord(fields[11], fields[12]),
@@ -124,10 +125,10 @@ class TelematicsService:
 
         else:
             query = """
-                INSERT INTO telematics_events (header, raw_packet, source_ip, source_port)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO telematics_events (header, vehicle_reg_no, raw_packet, source_ip, source_port)
+                VALUES ($1, $2, $3, $4, $5)
             """
-            values = [header, raw_packet, source_ip, source_port]
+            values = [header, vehicle_reg_no, raw_packet, source_ip, source_port]
 
         await self.pool.execute(query, *values)
 
@@ -157,6 +158,7 @@ class TelematicsService:
             packet_data['raw_packet'],
             fields=fields,
             header=header,
+            vehicle_reg_no=vehicle_number,
             checksum_matched=packet_data['checksum_matched'],
             source_ip=source_ip,
             source_port=source_port,

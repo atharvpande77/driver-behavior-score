@@ -54,7 +54,7 @@ class RCIngest:
                 f"{app_settings.SUREPASS_BASE_URL}/rc/rc-v2",
                 data={
                     "id_number": vehicle_number,
-                    "enrich": True
+                    "enrich": False
                 },
                 headers={
                     "Authorization": app_settings.SUREPASS_API_KEY
