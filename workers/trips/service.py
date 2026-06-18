@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from workers.trips.detector import detect_trips
+from workers.trips.detector import TripDetector
 from workers.trips.repository import TripRepository
 from workers.types import CloseTripAction, OpenTripAction
 
@@ -43,7 +43,7 @@ class TripService:
             if not events:
                 return
 
-            actions, updated_open_trip = detect_trips(vehicle_reg_no, imei, events, open_trip)
+            actions, updated_open_trip = TripDetector.detect_trips(vehicle_reg_no, imei, events, open_trip)
 
             async with conn.transaction():
                 for action in actions:

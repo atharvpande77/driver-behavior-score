@@ -1,9 +1,17 @@
 import uuid
 
+from workers.trips.constants import (
+    NIGHT_END_HOUR,
+    NIGHT_START_HOUR,
+    ODOMETER_RESET_THRESHOLD_KM,
+)
 from workers.types import EventRow, OpenTrip
 from workers.utils import haversine_km
 
-ODOMETER_RESET_THRESHOLD_KM: float = 500.0   # treat as reset if delta exceeds this
+
+def is_night(hour: int) -> bool:
+    """Check if the given hour falls within the defined night window."""
+    return hour >= NIGHT_START_HOUR or hour < NIGHT_END_HOUR
 
 
 def segment_distance(
