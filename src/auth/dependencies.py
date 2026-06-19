@@ -1,7 +1,6 @@
 from typing import Annotated
 
-from fastapi import Depends, Request
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, Request, HTTPException, status, Cookie
 
 from src.auth.repository import APIKeyRepository, AuthRepository
 from src.auth.service import APIKeyService, AuthService
@@ -10,7 +9,22 @@ from src.auth.types import AuthType
 from src.database import Session
 from src.models import APIKey, DashboardUser
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+def get_access_token(access_token: Annotated[str | None, Cookie()] = None) -> str | None:
+    return access_token
+
+
+def get_refresh_token(refresh_token: Annotated[str | None, Cookie()] = None) -> str:
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token cookie missing.",
+        )
+    return refresh_token
+
+
+GetAccessToken = Annotated[str | None, Depends(get_access_token)]
+GetRefreshToken = Annotated[str, Depends(get_refresh_token)]
 
 
 def get_auth_repository(db: Session):
@@ -36,8 +50,13 @@ def get_api_key_service(
 async def get_current_dashboard_user(
     request: Request,
     auth_svc: Annotated[AuthService, Depends(get_auth_service)],
-    token: Annotated[str, Depends(oauth2_scheme)],
+    token: GetAccessToken,
 ) -> DashboardUser:
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access token cookie missing.",
+        )
     user = await auth_svc.get_current_user_from_token(token)
 
     request.state.auth_type = AuthType.DASHBOARD
@@ -69,3 +88,6 @@ GetAuthService = Annotated[AuthService, Depends(get_auth_service)]
 GetAPIKeyService = Annotated[APIKeyService, Depends(get_api_key_service)]
 GetCurrentDashboardUser = Annotated[DashboardUser, Depends(get_current_dashboard_user)]
 VerifyAPIKey = Annotated[APIKey, Depends(verify_api_key)]
+
+
+

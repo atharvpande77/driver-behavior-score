@@ -7,6 +7,7 @@ from src.auth.dependencies import (
     GetAuthService,
     GetCurrentDashboardUser,
     disable_usage_collection,
+    GetRefreshToken,
 )
 from src.auth.schemas import (
     APIKeyResponse,
@@ -14,10 +15,9 @@ from src.auth.schemas import (
     CreateAPIKeyResponse,
     LoginRequest,
     RenameAPIKeyRequest,
-    RefreshTokenRequest,
     RegisterRequest,
     RegisterResponse,
-    TokenResponse,
+    LoginResponse,
 )
 
 
@@ -42,44 +42,47 @@ async def register(
 
 @router.post(
     "/login",
-    response_model=TokenResponse,
+    response_model=LoginResponse,
 )
 async def login(
     payload: LoginRequest,
     auth_svc: GetAuthService,
+    response: Response
 ):
-    tokens = await auth_svc.login(
+    login_data = await auth_svc.login(
+        response=response,
         username=payload.username,
         password=payload.password,
     )
-    return TokenResponse(
-        email=tokens.email,
-        name=tokens.name,
-        access_token=tokens.access_token,
-        refresh_token=tokens.refresh_token,
-        access_expires_in=tokens.access_expires_in,
-        refresh_expires_in=tokens.refresh_expires_in,
+    
+    return LoginResponse(
+        user={
+            "email": login_data["email"],
+            "name": login_data["name"],
+        },
+        access_expires_in=login_data["access_expires_in"],
     )
 
 
 @router.post(
     "/refresh",
-    response_model=TokenResponse,
+    response_model=LoginResponse,
 )
 async def refresh_tokens(
-    payload: RefreshTokenRequest,
+    refresh_token: GetRefreshToken,
     auth_svc: GetAuthService,
+    response: Response,
 ):
-    tokens = await auth_svc.refresh(
-        refresh_token=payload.refresh_token,
+    refresh_data = await auth_svc.refresh(
+        response=response,
+        refresh_token=refresh_token,
     )
-    return TokenResponse(
-        email=tokens.email,
-        name=tokens.name,
-        access_token=tokens.access_token,
-        refresh_token=tokens.refresh_token,
-        access_expires_in=tokens.access_expires_in,
-        refresh_expires_in=tokens.refresh_expires_in,
+    return LoginResponse(
+        user={
+            "email": refresh_data["email"],
+            "name": refresh_data["name"],
+        },
+        access_expires_in=refresh_data["access_expires_in"],
     )
 
 

@@ -1,11 +1,11 @@
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Response
 import secrets
 import uuid
 
 from src.config import app_settings
 from src.models import APIKey, DashboardUser
 from src.auth.repository import APIKeyRepository, AuthRepository
-from src.auth.types import AuthTokens
+
 from src.auth.utils import (
     create_token,
     decode_token,
@@ -41,8 +41,9 @@ class AuthService:
         await self.repo.commit()
         log_event(self.logger, "INFO", "auth.register.success", email=user.email, user_id=user.id)
         return user
+    
 
-    async def login(self, *, username: str, password: str) -> AuthTokens:
+    async def login(self, response: Response, *, username: str, password: str) -> dict:
         email = username.strip().lower()
         log_event(self.logger, "INFO", "auth.login.attempt", email=email)
         user = await self.repo.get_by_email(email)
@@ -63,90 +64,74 @@ class AuthService:
         access_expires_in = app_settings.JWT_ACCESS_EXPIRY_SECONDS
         refresh_expires_in = app_settings.JWT_REFRESH_EXPIRY_SECONDS
         log_event(self.logger, "INFO", "auth.login.success", email=user.email, user_id=user.id)
-        return AuthTokens(
-            email=user.email,
-            name=user.name,
-            access_token=create_token(
-                subject=user.email,
-                token_type="access",
-                expires_in_seconds=access_expires_in,
-            ),
-            refresh_token=create_token(
-                subject=user.email,
-                token_type="refresh",
-                expires_in_seconds=refresh_expires_in,
-            ),
-            access_expires_in=access_expires_in,
-            refresh_expires_in=refresh_expires_in,
+        
+        access_token = create_token(
+            subject=user.email,
+            token_type="access",
+            expires_in_seconds=access_expires_in,
         )
+        refresh_token = create_token(
+            subject=user.email,
+            token_type="refresh",
+            expires_in_seconds=refresh_expires_in,
+        )
+        
+        self.set_tokens_in_response_cookies(
+            response,
+            access_token=access_token,
+            refresh_token=refresh_token,
+        )
+        
+        return {
+            "email": user.email,
+            "name": user.name,
+            "access_expires_in": access_expires_in,
+        }
 
 
-    async def refresh(self, *, refresh_token: str) -> AuthTokens:
+    async def refresh(self, response: Response, *, refresh_token: str) -> dict:
         log_event(self.logger, "INFO", "auth.refresh.attempt")
-        payload = decode_token(refresh_token)
-        if payload is None or payload.get("typ") != "refresh":
-            log_event(self.logger, "WARNING", "auth.refresh.invalid_token")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired refresh token.",
-            )
-
-        subject = payload.get("sub")
-        if not subject:
-            log_event(self.logger, "WARNING", "auth.refresh.invalid_payload")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload.",
-            )
-
-        user = await self.repo.get_by_email(subject)
-        if user is None:
-            log_event(self.logger, "WARNING", "auth.refresh.user_not_found", email=subject)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found.",
-            )
-
-        if not user.active:
-            log_event(self.logger, "WARNING", "auth.refresh.inactive_user", email=user.email, user_id=user.id)
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User is inactive.",
-            )
+        user = await self.get_current_user_from_token(refresh_token, token_type="refresh")
 
         access_expires_in = app_settings.JWT_ACCESS_EXPIRY_SECONDS
         refresh_expires_in = app_settings.JWT_REFRESH_EXPIRY_SECONDS
-        tokens = AuthTokens(
-            email=user.email,
-            name=user.name,
-            access_token=create_token(
-                subject=user.email,
-                token_type="access",
-                expires_in_seconds=access_expires_in,
-            ),
-            refresh_token=create_token(
-                subject=user.email,
-                token_type="refresh",
-                expires_in_seconds=refresh_expires_in,
-            ),
-            access_expires_in=access_expires_in,
-            refresh_expires_in=refresh_expires_in,
+        
+        access_token = create_token(
+            subject=user.email,
+            token_type="access",
+            expires_in_seconds=access_expires_in,
         )
+        refresh_token = create_token(
+            subject=user.email,
+            token_type="refresh",
+            expires_in_seconds=refresh_expires_in,
+        )
+        
+        self.set_tokens_in_response_cookies(
+            response,
+            access_token=access_token,
+            refresh_token=refresh_token,
+        )
+        
         log_event(self.logger, "INFO", "auth.refresh.success", email=user.email, user_id=user.id)
-        return tokens
+        return {
+            "email": user.email,
+            "name": user.name,
+            "access_expires_in": access_expires_in,
+        }
 
-    async def get_current_user_from_token(self, token: str) -> DashboardUser:
+    async def get_current_user_from_token(self, token: str, token_type: str = "access") -> DashboardUser:
         payload = decode_token(token)
-        if payload is None or payload.get("typ") != "access":
-            log_event(self.logger, "WARNING", "auth.access.invalid_token")
+        if payload is None or payload.get("typ") != token_type:
+            log_event(self.logger, "WARNING", f"auth.{token_type}.invalid_token")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired access token.",
+                detail=f"Invalid or expired {token_type} token.",
             )
 
         subject = payload.get("sub")
         if not subject:
-            log_event(self.logger, "WARNING", "auth.access.invalid_payload")
+            log_event(self.logger, "WARNING", f"auth.{token_type}.invalid_payload")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload.",
@@ -154,21 +139,49 @@ class AuthService:
 
         user = await self.repo.get_by_email(subject)
         if user is None:
-            log_event(self.logger, "WARNING", "auth.access.user_not_found", email=subject)
+            log_event(self.logger, "WARNING", f"auth.{token_type}.user_not_found", email=subject)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found.",
             )
 
         if not user.active:
-            log_event(self.logger, "WARNING", "auth.access.inactive_user", email=user.email, user_id=user.id)
+            log_event(self.logger, "WARNING", f"auth.{token_type}.inactive_user", email=user.email, user_id=user.id)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User is inactive.",
             )
 
-        log_event(self.logger, "INFO", "auth.access.validated", email=user.email, user_id=user.id)
+        log_event(self.logger, "INFO", f"auth.{token_type}.validated", email=user.email, user_id=user.id)
         return user
+    
+    
+    def set_tokens_in_response_cookies(
+        self,
+        response: Response,
+        *,
+        access_token: str,
+        refresh_token: str,
+    ):
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            path="/",
+            max_age=app_settings.JWT_ACCESS_EXPIRY_SECONDS,
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            path="/auth/refresh",
+            max_age=app_settings.JWT_REFRESH_EXPIRY_SECONDS,
+        )
+    
 
 class APIKeyService:
     MAX_ACTIVE_KEYS_PER_USER = 5
