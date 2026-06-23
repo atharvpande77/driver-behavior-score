@@ -1,13 +1,7 @@
 import os
-from pathlib import Path
-
 import asyncpg
-from dotenv import load_dotenv
-
 
 _pool: asyncpg.Pool | None = None
-_ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
-load_dotenv(_ENV_PATH)
 
 
 def _database_url() -> str:
@@ -18,14 +12,22 @@ def _database_url() -> str:
     return database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
 
 
+async def init_connection(conn) -> None:
+    # Connection initialization and health validation
+    await conn.execute("SELECT 1")
+
+
 async def init_pool() -> asyncpg.Pool:
     global _pool
 
     if _pool is None:
         _pool = await asyncpg.create_pool(
             dsn=_database_url(),
-            min_size=3,
-            max_size=3,
+            min_size=1,
+            max_size=5,
+            command_timeout=5.0,
+            timeout=5.0,
+            init=init_connection,
         )
 
     return _pool

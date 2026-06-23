@@ -5,9 +5,10 @@ from uuid import UUID, NAMESPACE_URL, uuid4, uuid5
 from fastapi import Request
 
 from src.auth.types import AuthType
-from src.logging_utils import get_logger, log_event
+from src.core.utils import get_ipaddr
+from src.core.logging_utils import get_logger, log_event
 from src.score.types import RiskLevel
-from src.types import APINames
+from src.core.types import APINames
 from src.usage.repository import UsageEventRepository
 from src.usage.schemas import (
     UsageApiKeyStatsResponse,
@@ -325,14 +326,7 @@ class UsageEventService:
             return uuid5(NAMESPACE_URL, value_str)
 
     def _get_ip_address(self, request: Request) -> str | None:
-        forwarded_for = request.headers.get("x-forwarded-for")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip() or None
-
-        client = request.client
-        if client is None:
-            return None
-        return client.host
+        return get_ipaddr(request) or None
 
     async def _build_period_summary(
         self,

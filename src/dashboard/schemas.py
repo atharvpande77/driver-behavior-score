@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_serializer, field_valid
 from datetime import datetime
 
 from src.score.types import DBSWithPremium, DBSStats
-from src.utils import get_state_name, get_challan_paid_status, serialize_vehicle_number
+from src.core.utils import get_state_name, get_challan_paid_status, serialize_vehicle_number
 
 
 class VehicleResponse(BaseModel):

@@ -1,11 +1,9 @@
 import contextvars
 import logging
 import logging.config
+import os
 import sys
 from typing import Any
-
-from src.config import app_settings
-
 
 _REQUEST_ID_CTX: contextvars.ContextVar[str] = contextvars.ContextVar(
     "request_id",
@@ -84,17 +82,20 @@ class ColorStructuredFormatter(logging.Formatter):
 
 
 def configure_logging() -> None:
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    use_colors = os.getenv("LOG_USE_COLORS", "true").lower() in ("true", "1", "yes")
+
     logging.config.dictConfig(
         {
             "version": 1,
             "disable_existing_loggers": False,
             "filters": {
-                "request_id_filter": {"()": "src.logging_utils.RequestIdFilter"},
+                "request_id_filter": {"()": "telematics.logging_utils.RequestIdFilter"},
             },
             "formatters": {
                 "plain_structured": {
-                    "()": "src.logging_utils.ColorStructuredFormatter",
-                    "use_colors": app_settings.LOG_USE_COLORS,
+                    "()": "telematics.logging_utils.ColorStructuredFormatter",
+                    "use_colors": use_colors,
                 }
             },
             "handlers": {
@@ -105,23 +106,11 @@ def configure_logging() -> None:
                 }
             },
             "root": {
-                "level": app_settings.LOG_LEVEL.upper(),
+                "level": log_level,
                 "handlers": ["console"],
             },
         }
     )
-
-
-def set_request_id(request_id: str) -> contextvars.Token:
-    return _REQUEST_ID_CTX.set(request_id)
-
-
-def reset_request_id(token: contextvars.Token) -> None:
-    _REQUEST_ID_CTX.reset(token)
-
-
-def get_request_id() -> str:
-    return _REQUEST_ID_CTX.get()
 
 
 def get_logger(name: str) -> logging.Logger:

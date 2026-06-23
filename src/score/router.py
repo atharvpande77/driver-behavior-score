@@ -4,8 +4,8 @@ from src.auth.dependencies import verify_api_key
 from src.score.dependencies import get_score_service
 from src.score.service import ScoreService
 from src.score.schemas import DBSWithPremiumResponse
-from src.dependencies import ValidateVehicleNumber
-from src.dependencies import GetUsageRecorder
+from src.core.dependencies import ValidateVehicleNumber
+from src.core.dependencies import GetUsageRecorder
 
 
 router = APIRouter(

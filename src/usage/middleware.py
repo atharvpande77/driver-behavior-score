@@ -4,8 +4,8 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Request
 
-from src.database import async_session
-from src.logging_utils import get_logger, log_event, reset_request_id, set_request_id
+from src.core.database import async_session
+from src.core.logging_utils import get_logger, log_event, reset_request_id, set_request_id
 from src.usage.repository import UsageEventRepository
 from src.usage.service import UsageEventService
 

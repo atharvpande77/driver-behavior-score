@@ -1,3 +1,9 @@
+import asyncio
+import random
+import time
+import asyncpg
+from telematics.logging_utils import get_logger, log_event
+from telematics.constants import DB_TIMEOUT_SECONDS
 from telematics.utils import (
     compute_checksum_matched,
     get_min_fields_for_header,
@@ -8,26 +14,74 @@ from telematics.utils import (
     safe_int,
 )
 
+logger = get_logger(__name__)
+
+
+def log_failed_packet(raw_packet: str, reason: str, **kwargs) -> None:
+    # Sample rate of 10% for failures
+    if random.random() < 0.1:
+        # Truncate packet to 100 chars
+        truncated_packet = raw_packet[:100] + "..." if len(raw_packet) > 100 else raw_packet
+        log_event(
+            logger,
+            "WARNING",
+            "telematics.packet.failed_sample",
+            raw_packet=truncated_packet,
+            reason=reason,
+            **kwargs
+        )
+
 
 class TelematicsService:
-    def __init__(self, pool):
+    def __init__(self, pool: asyncpg.Pool):
         self.pool = pool
 
+    async def _execute_with_retry(self, query: str, *values, max_retries: int = 3, initial_delay: float = 0.5) -> None:
+        delay = initial_delay
+        for attempt in range(max_retries):
+            try:
+                async with asyncio.timeout(DB_TIMEOUT_SECONDS):
+                    await self.pool.execute(query, *values)
+                    return
+            except (asyncpg.IntegrityConstraintViolationError, asyncpg.DataError) as e:
+                logger.error("DB integrity/data error (not retrying): %s", e)
+                raise
+            except (asyncpg.PostgresError, OSError, TimeoutError, asyncio.TimeoutError) as e:
+                if attempt == max_retries - 1:
+                    logger.error("DB transient error on final attempt: %s", e)
+                    raise
+                logger.warning("DB transient error: %s. Retrying in %.2f seconds...", e, delay)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 5.0)
+
+    async def _fetchrow_with_retry(self, query: str, *values, max_retries: int = 3, initial_delay: float = 0.5) -> asyncpg.Record | None:
+        delay = initial_delay
+        for attempt in range(max_retries):
+            try:
+                async with asyncio.timeout(DB_TIMEOUT_SECONDS):
+                    return await self.pool.fetchrow(query, *values)
+            except (asyncpg.IntegrityConstraintViolationError, asyncpg.DataError) as e:
+                logger.error("DB integrity/data error (not retrying): %s", e)
+                raise
+            except (asyncpg.PostgresError, OSError, TimeoutError, asyncio.TimeoutError) as e:
+                if attempt == max_retries - 1:
+                    logger.error("DB transient error on final attempt: %s", e)
+                    raise
+                logger.warning("DB transient error: %s. Retrying in %.2f seconds...", e, delay)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 5.0)
 
     def validate_ais140_packet(self, raw_packet: str) -> dict | None:
         if (len(raw_packet) < 40) or (not raw_packet.startswith('$')) or (not raw_packet.endswith('*')):
             return None
 
         fields = raw_packet[1:-1].split(',')
-
         header = fields[0]
 
         min_fields = get_min_fields_for_header(header)
-
         if not min_fields or len(fields) < min_fields:
             return None
 
-        # Extract the received checksum (last field for DP packets) and verify
         received_checksum = fields[53] if header == 'DP' and len(fields) > 53 else None
         checksum_matched = compute_checksum_matched(raw_packet, received_checksum)
 
@@ -38,17 +92,15 @@ class TelematicsService:
             "checksum_matched": checksum_matched,
         }
 
-
-    def get_vehicle_number_from_device_imei(self, device_imei: str) -> str | None:
+    async def get_vehicle_number_from_device_imei(self, device_imei: str) -> str | None:
         if not device_imei or len(device_imei) != 15:
             return None
 
-        REGISTERED_VEHICLES = {
-            "865510083289001": "MH31CS1928"
-        }
-
-        return REGISTERED_VEHICLES.get(device_imei)
-
+        row = await self._fetchrow_with_retry(
+            "SELECT vehicle_reg_no FROM telematics_devices WHERE imei = $1 AND active = true",
+            device_imei
+        )
+        return row["vehicle_reg_no"] if row else None
 
     async def store_data_packet(
         self,
@@ -60,9 +112,8 @@ class TelematicsService:
         checksum_matched: bool | None = None,
         source_ip: str | None = None,
         source_port: int | None = None,
-    ):
+    ) -> None:
         if header == 'DP':
-            # fields[12] = lat dir (N/S), fields[14] = lon dir (E/W)
             dp_params = {
                 'header':                   header,
                 'vendor_id':                fields[1],
@@ -130,36 +181,117 @@ class TelematicsService:
             """
             values = [header, vehicle_reg_no, raw_packet, source_ip, source_port]
 
-        await self.pool.execute(query, *values)
+        await self._execute_with_retry(query, *values)
 
+        if header == 'DP':
+            await self._execute_with_retry(
+                """
+                UPDATE telematics_devices
+                SET last_seen_at = $1, last_source_ip = $2
+                WHERE imei = $3
+                """,
+                dp_params['gps_datetime'],
+                source_ip,
+                fields[6],
+            )
 
     async def process_packet(
         self,
-        packet: bytes,
+        packet: str,
         *,
         source_ip: str | None = None,
         source_port: int | None = None,
     ) -> None:
-        raw_packet = packet.decode("utf-8", errors="replace").replace("\x00", "\\x00")
-        raw_packet = raw_packet.strip()
+        start_time = time.time()
+        raw_packet = packet.strip()
 
         packet_data = self.validate_ais140_packet(raw_packet)
         if packet_data is None:
+            log_event(
+                logger,
+                "WARNING",
+                "telematics.packet.invalid",
+                source_ip=source_ip,
+                reason="validation_failed"
+            )
+            log_failed_packet(raw_packet, "validation_failed", source_ip=source_ip)
             return
 
         header, fields = packet_data['header'], packet_data['fields']
+        imei = fields[6] if len(fields) > 6 else None
 
-        vehicle_number = self.get_vehicle_number_from_device_imei(fields[6])
-
-        if not vehicle_number:
+        db_start = time.time()
+        try:
+            vehicle_number = await self.get_vehicle_number_from_device_imei(imei)
+        except Exception:
+            db_ms = (time.time() - db_start) * 1000.0
+            processing_ms = (time.time() - start_time) * 1000.0
+            log_event(
+                logger,
+                "ERROR",
+                "telematics.database.error",
+                imei=imei,
+                source_ip=source_ip,
+                packet_header=header,
+                reason="resolve_imei_failed",
+                database_ms=round(db_ms, 2),
+                processing_ms=round(processing_ms, 2)
+            )
             return
 
-        await self.store_data_packet(
-            packet_data['raw_packet'],
-            fields=fields,
-            header=header,
-            vehicle_reg_no=vehicle_number,
-            checksum_matched=packet_data['checksum_matched'],
-            source_ip=source_ip,
-            source_port=source_port,
-        )
+        if not vehicle_number:
+            db_ms = (time.time() - db_start) * 1000.0
+            processing_ms = (time.time() - start_time) * 1000.0
+            log_event(
+                logger,
+                "WARNING",
+                "telematics.device.unknown",
+                imei=imei,
+                source_ip=source_ip,
+                packet_header=header,
+                reason="imei_not_registered",
+                database_ms=round(db_ms, 2),
+                processing_ms=round(processing_ms, 2)
+            )
+            return
+
+        try:
+            await self.store_data_packet(
+                packet_data['raw_packet'],
+                fields=fields,
+                header=header,
+                vehicle_reg_no=vehicle_number,
+                checksum_matched=packet_data['checksum_matched'],
+                source_ip=source_ip,
+                source_port=source_port,
+            )
+            db_ms = (time.time() - db_start) * 1000.0
+            processing_ms = (time.time() - start_time) * 1000.0
+
+            frame_num = safe_int(fields[51]) if len(fields) > 51 else None
+            log_event(
+                logger,
+                "INFO",
+                "telematics.packet.success",
+                imei=imei,
+                source_ip=source_ip,
+                packet_header=header,
+                frame_number=frame_num,
+                database_ms=round(db_ms, 2),
+                processing_ms=round(processing_ms, 2)
+            )
+        except Exception:
+            db_ms = (time.time() - db_start) * 1000.0
+            processing_ms = (time.time() - start_time) * 1000.0
+            log_event(
+                logger,
+                "ERROR",
+                "telematics.database.error",
+                imei=imei,
+                source_ip=source_ip,
+                packet_header=header,
+                reason="store_packet_failed",
+                database_ms=round(db_ms, 2),
+                processing_ms=round(processing_ms, 2)
+            )
+            log_failed_packet(raw_packet, "store_failed", imei=imei, source_ip=source_ip)

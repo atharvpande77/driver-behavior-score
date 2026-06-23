@@ -1,5 +1,28 @@
 import re
 
+from fastapi import Request
+
+
+def get_ipaddr(request: Request) -> str:
+    """Extract the real client IP address from the request.
+
+    Reads the leftmost entry of the X-Forwarded-For header, which Apache's
+    mod_proxy sets to the originating client IP (Apache appends its own address
+    to the right of any existing entries).
+
+    Falls back to request.client.host for local development where no proxy is
+    present.
+
+    WARNING: X-Forwarded-For can be spoofed if Apache is not configured to
+    strip and re-set it before ProxyPass. Protect against this with:
+        RequestHeader unset X-Forwarded-For
+    in the Apache VirtualHost config before the ProxyPass directive.
+    """
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    return request.client.host if request.client else "unknown"
+
 
 _BH_VEHICLE_NUMBER_PATTERN = re.compile(
     r"^(?P<year>\d{2})BH(?P<number>\d{4})(?P<suffix>[A-Z]{0,2})$"

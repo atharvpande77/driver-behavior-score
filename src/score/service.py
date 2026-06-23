@@ -8,11 +8,11 @@ from src.violations.constants import SCORING_WINDOW_DAYS
 from src.violations.types import ChallanDTO
 from src.vehicles.service import VehicleService
 from src.vehicles.types import VehicleDTO
-from src.models import DBSRecord, Vehicle
-from src.logging_utils import get_logger, log_event
-from src.types import APINames, UsageStatsPerVehicle
+from src.core.models import DBSRecord, Vehicle
+from src.core.logging_utils import get_logger, log_event
+from src.core.types import APINames, UsageStatsPerVehicle
 from src.dashboard.utils import get_risk_category
-from src.dependencies import UsageRecorder
+from src.core.dependencies import UsageRecorder
 
 
 class ScoreService:

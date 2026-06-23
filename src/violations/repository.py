@@ -5,8 +5,8 @@ from datetime import date, timedelta
 import uuid
 from datetime import datetime
 
-from src.database import BaseDBRepository
-from src.models import (
+from src.core.database import BaseDBRepository
+from src.core.models import (
     ChallansFetchLog,
     ChallansOffenseDetail,
     Challan,

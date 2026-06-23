@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, date
 from enum import Enum
 
-from src.models import DBSRecord
+from src.core.models import DBSRecord
 
 class RiskLevel(str, Enum):
     SEVERE = "SEVERE"

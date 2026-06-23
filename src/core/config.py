@@ -27,7 +27,15 @@ class AppSettings(BaseSettings):
     
     LOG_LEVEL: str = "INFO"
     LOG_USE_COLORS: bool = True
-    
+
+    # Rate limits for auth endpoints — slowapi limits string format: "N/minute", "N/second", etc.
+    # Login: low limit to block credential stuffing without impacting legitimate users.
+    # Register: very low — a real user almost never registers more than once.
+    # Refresh: higher — browsers refresh silently on every tab load / focus event.
+    AUTH_LOGIN_RATE_LIMIT: str = "5/minute"
+    AUTH_REGISTER_RATE_LIMIT: str = "3/minute"
+    AUTH_REFRESH_RATE_LIMIT: str = "20/minute"
+
     OPENAI_API_KEY: str
     
 

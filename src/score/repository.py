@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import insert, select
 
-from src.database import BaseDBRepository
-from src.models import DBSRecord
+from src.core.database import BaseDBRepository
+from src.core.models import DBSRecord
 from src.score.types import DBSStats
 
 

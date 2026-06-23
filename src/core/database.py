@@ -5,7 +5,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 
-from src.config import app_settings
+from src.core.config import app_settings
 
 
 class Base(DeclarativeBase, MappedAsDataclass):

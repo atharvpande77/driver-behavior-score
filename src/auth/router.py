@@ -1,12 +1,13 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from src.auth.dependencies import (
     GetAPIKeyService,
     GetAuthService,
     GetCurrentDashboardUser,
     disable_usage_collection,
+    GetRefreshToken,
 )
 from src.auth.schemas import (
     APIKeyResponse,
@@ -14,11 +15,12 @@ from src.auth.schemas import (
     CreateAPIKeyResponse,
     LoginRequest,
     RenameAPIKeyRequest,
-    RefreshTokenRequest,
     RegisterRequest,
     RegisterResponse,
-    TokenResponse,
+    LoginResponse,
 )
+from src.core.rate_limit import limiter
+from src.core.config import app_settings
 
 
 router = APIRouter(tags=["auth"], dependencies=[Depends(disable_usage_collection)])
@@ -29,7 +31,9 @@ router = APIRouter(tags=["auth"], dependencies=[Depends(disable_usage_collection
     response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit(app_settings.AUTH_REGISTER_RATE_LIMIT)
 async def register(
+    request: Request,
     payload: RegisterRequest,
     auth_svc: GetAuthService,
 ):
@@ -42,44 +46,51 @@ async def register(
 
 @router.post(
     "/login",
-    response_model=TokenResponse,
+    response_model=LoginResponse,
 )
+@limiter.limit(app_settings.AUTH_LOGIN_RATE_LIMIT)
 async def login(
+    request: Request,
     payload: LoginRequest,
     auth_svc: GetAuthService,
+    response: Response
 ):
-    tokens = await auth_svc.login(
+    login_data = await auth_svc.login(
+        response=response,
         username=payload.username,
         password=payload.password,
     )
-    return TokenResponse(
-        email=tokens.email,
-        name=tokens.name,
-        access_token=tokens.access_token,
-        refresh_token=tokens.refresh_token,
-        access_expires_in=tokens.access_expires_in,
-        refresh_expires_in=tokens.refresh_expires_in,
+    
+    return LoginResponse(
+        user={
+            "email": login_data["email"],
+            "name": login_data["name"],
+        },
+        access_expires_in=login_data["access_expires_in"],
     )
 
 
 @router.post(
     "/refresh",
-    response_model=TokenResponse,
+    response_model=LoginResponse,
 )
+@limiter.limit(app_settings.AUTH_REFRESH_RATE_LIMIT)
 async def refresh_tokens(
-    payload: RefreshTokenRequest,
+    request: Request,
+    refresh_token: GetRefreshToken,
     auth_svc: GetAuthService,
+    response: Response,
 ):
-    tokens = await auth_svc.refresh(
-        refresh_token=payload.refresh_token,
+    refresh_data = await auth_svc.refresh(
+        response=response,
+        refresh_token=refresh_token,
     )
-    return TokenResponse(
-        email=tokens.email,
-        name=tokens.name,
-        access_token=tokens.access_token,
-        refresh_token=tokens.refresh_token,
-        access_expires_in=tokens.access_expires_in,
-        refresh_expires_in=tokens.refresh_expires_in,
+    return LoginResponse(
+        user={
+            "email": refresh_data["email"],
+            "name": refresh_data["name"],
+        },
+        access_expires_in=refresh_data["access_expires_in"],
     )
 
 

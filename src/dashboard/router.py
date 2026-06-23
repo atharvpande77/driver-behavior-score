@@ -9,8 +9,8 @@ from src.dashboard.schemas import (
 )
 
 from src.auth.dependencies import get_current_dashboard_user
-from src.dependencies import ValidateVehicleNumber
-from src.dependencies import GetUsageRecorder
+from src.core.dependencies import ValidateVehicleNumber
+from src.core.dependencies import GetUsageRecorder
 
 
 router = APIRouter(

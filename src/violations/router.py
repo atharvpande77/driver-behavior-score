@@ -4,8 +4,8 @@ from src.auth.dependencies import verify_api_key
 from src.violations.dependencies import get_challan_service
 from src.violations.service import ChallanService
 
-from src.dependencies import ValidateVehicleNumber
-from src.dependencies import GetUsageRecorder
+from src.core.dependencies import ValidateVehicleNumber
+from src.core.dependencies import GetUsageRecorder
 
 router = APIRouter(
     tags=["public"],

@@ -1,7 +1,7 @@
 import asyncio
 from openai import AsyncOpenAI
 
-from src.config import app_settings
+from src.core.config import app_settings
 from src.violations.repository import ChallanRepository
 from src.violations.ingest import ChallanIngest
 from src.violations.constants import (
@@ -20,10 +20,10 @@ from src.violations.types import (
 )
 from src.violations.utils import get_severity_from_thz_category, none_if_blank, build_classification_corpus, normalize_offense_text, needs_fetch
 from src.violations.types import ChallanDTO
-from src.models import Challan
-from src.logging_utils import get_logger, log_event
-from src.types import APINames, UsageStatsPerVehicle
-from src.dependencies import UsageRecorder
+from src.core.models import Challan
+from src.core.logging_utils import get_logger, log_event
+from src.core.types import APINames, UsageStatsPerVehicle
+from src.core.dependencies import UsageRecorder
 
 
 class ChallanService:

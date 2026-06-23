@@ -9,7 +9,7 @@ from src.violations.dependencies import get_challan_service
 from src.violations.service import ChallanService
 from src.vehicles.dependencies import get_vehicle_service
 from src.vehicles.service import VehicleService
-from src.database import Session
+from src.core.database import Session
 
 
 def get_score_repository(db: Session):

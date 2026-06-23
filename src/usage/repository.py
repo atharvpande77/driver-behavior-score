@@ -5,8 +5,8 @@ from uuid import UUID
 from sqlalchemy import distinct, func, insert, select
 from sqlalchemy.sql import over
 
-from src.database import BaseDBRepository
-from src.models import APIKey, UsageEvent
+from src.core.database import BaseDBRepository
+from src.core.models import APIKey, UsageEvent
 
 
 class UsageEventRepository(BaseDBRepository):

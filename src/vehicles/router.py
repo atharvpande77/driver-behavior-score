@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends
 from src.auth.dependencies import verify_api_key
 from src.vehicles.dependencies import get_vehicle_service
 from src.vehicles.service import VehicleService
-from src.dependencies import ValidateVehicleNumber
+from src.core.dependencies import ValidateVehicleNumber
 from src.vehicles.schemas import VehicleResponse
-from src.dependencies import GetUsageRecorder
+from src.core.dependencies import GetUsageRecorder
 
 
 router = APIRouter(

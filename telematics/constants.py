@@ -1,0 +1,20 @@
+HOST = "0.0.0.0"
+PORT = 8002
+HEALTH_HOST = "127.0.0.1"
+HEALTH_PORT = 8083
+READ_SIZE_BYTES = 4096
+MAX_BUFFER_BYTES = 65536  # 64 KB — disconnect if a connection accumulates this much unframed data
+
+# Resource Protection Constants
+CONNECTION_IDLE_TIMEOUT_SECONDS = 60.0
+MAX_PACKET_SIZE_BYTES = 2048
+MAX_SIMULTANEOUS_CONNECTIONS = 500
+MAX_CONNECTION_LIFETIME_SECONDS = 3600.0  # 1 hour
+TCP_BACKLOG = 100
+
+# Rate limiting settings (packets per second)
+MAX_PACKETS_PER_SECOND_PER_IP = 10.0
+MAX_PACKETS_PER_SECOND_PER_IMEI = 5.0
+
+# Database Timeouts
+DB_TIMEOUT_SECONDS = 5.0

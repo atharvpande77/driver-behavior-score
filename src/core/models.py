@@ -26,7 +26,7 @@ from sqlalchemy.orm import (
 from datetime import date, datetime
 import uuid
 
-from src.database import Base
+from src.core.database import Base
 
 
 class Vehicle(Base):
@@ -518,3 +518,27 @@ class TelematicsTripCursor(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), init=False, onupdate=func.now(), nullable=True
     )
+
+
+class TelematicsDevice(Base):
+    __tablename__ = "telematics_devices"
+
+    imei: Mapped[str] = mapped_column(String(15), primary_key=True)
+    vehicle_reg_no: Mapped[str] = mapped_column(String(16), nullable=False)
+    active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        init=False,
+        server_default=text("true"),
+    )
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP, init=False, server_default=func.now())
+    last_seen_at: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True, default=None)
+    last_source_ip: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+
+    __table_args__ = (
+        Index("ix_telematics_devices_imei", "imei"),
+        Index("ix_telematics_devices_vehicle_reg_no", "vehicle_reg_no"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<TelematicsDevice imei={self.imei} vehicle={self.vehicle_reg_no}>"

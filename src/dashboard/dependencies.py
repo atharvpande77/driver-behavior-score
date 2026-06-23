@@ -6,7 +6,7 @@ from src.dashboard.service import DashboardService
 from src.violations.dependencies import GetChallanService
 from src.score.dependencies import GetScoreService
 from src.vehicles.dependencies import GetVehicleService
-from src.database import async_session
+from src.core.database import async_session
 
 
 def get_dashboard_service(

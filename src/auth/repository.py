@@ -3,8 +3,8 @@ import uuid
 
 from sqlalchemy import func, insert, select
 
-from src.database import BaseDBRepository
-from src.models import APIKey, DashboardUser
+from src.core.database import BaseDBRepository
+from src.core.models import APIKey, DashboardUser
 
 
 class AuthRepository(BaseDBRepository):

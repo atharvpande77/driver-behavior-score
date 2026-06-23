@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from src.database import Session
+from src.core.database import Session
 from src.usage.repository import UsageEventRepository
 from src.usage.service import UsageEventService
 

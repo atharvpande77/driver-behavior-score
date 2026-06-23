@@ -2,9 +2,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from contextlib import asynccontextmanager
 import httpx
+
 
 from src.usage.middleware import register_usage_event_collection_middleware
 from src.usage.router import router as usage_router
@@ -13,7 +16,8 @@ from src.violations.router import router as violations_router
 from src.vehicles.router import router as vehicles_router
 from src.dashboard.router import router as dashboard_router
 from src.auth.router import router as auth_router
-from src.logging_utils import (
+from src.core.rate_limit import limiter
+from src.core.logging_utils import (
     configure_logging,
     get_logger,
     log_event,
@@ -68,6 +72,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 @app.middleware("http")
 async def add_cache_control_headers(request: Request, call_next):
@@ -119,6 +126,14 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         response.headers["X-Request-ID"] = request_id
     return response
 
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to DBS Backend APIs"}
 
 @app.get("/health", summary="Health Check", tags=["health"])
 async def health_check():

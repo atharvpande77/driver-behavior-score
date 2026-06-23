@@ -22,18 +22,14 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str
-
-
-class TokenResponse(BaseModel):
+class UserMetadata(BaseModel):
     email: str
     name: str
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
+
+
+class LoginResponse(BaseModel):
+    user: UserMetadata
     access_expires_in: int
-    refresh_expires_in: int
 
 
 class CreateAPIKeyRequest(BaseModel):
