@@ -60,7 +60,6 @@ app = FastAPI(
     summary=APP_SUMMARY,
     description=APP_DESCRIPTION,
     version="0.1.0",
-    root_path="/dbs",
     lifespan=lifespan
 )
 
