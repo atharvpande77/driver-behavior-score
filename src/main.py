@@ -17,6 +17,7 @@ from src.vehicles.router import router as vehicles_router
 from src.dashboard.router import router as dashboard_router
 from src.auth.router import router as auth_router
 from src.core.rate_limit import limiter
+from src.core.config import app_settings
 from src.core.logging_utils import (
     configure_logging,
     get_logger,
@@ -64,10 +65,16 @@ app = FastAPI(
 )
 
 
+_cors_origins = [
+    origin.strip()
+    for origin in app_settings.CORS_ALLOWED_ORIGINS.split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

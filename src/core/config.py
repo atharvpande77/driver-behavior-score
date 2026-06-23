@@ -10,6 +10,7 @@ class AppSettings(BaseSettings):
     )
     
     APP_PORT: int
+    CORS_ALLOWED_ORIGINS: str = ""  # comma-separated list e.g. "https://app.example.com,https://admin.example.com"
 
     DATABASE_URL: Optional[str] = None
     POSTGRES_USER: str
