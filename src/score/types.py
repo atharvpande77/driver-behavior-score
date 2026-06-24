@@ -3,6 +3,7 @@ from datetime import datetime, date
 from enum import Enum
 
 from src.core.models import DBSRecord
+from src.violations.types import ChallanDTO
 
 class RiskLevel(str, Enum):
     SEVERE = "SEVERE"
@@ -39,6 +40,7 @@ class DBSWithPremium:
     dbs_stats:        DBSStats
     base_premium:     int | None
     adjusted_premium: int | None
+    violations:       list[ChallanDTO] = field(default_factory=list)
 
 
 @dataclass

@@ -18,7 +18,7 @@ def verify_password(password: str, password_hash: str) -> bool:
     )
 
 
-def create_token(*, subject: str, token_type: str, expires_in_seconds: int) -> str:
+def create_token(*, subject: str, token_type: str, expires_in_seconds: int, jti: str | None = None) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
@@ -26,14 +26,18 @@ def create_token(*, subject: str, token_type: str, expires_in_seconds: int) -> s
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(seconds=expires_in_seconds)).timestamp()),
     }
-    return jwt.encode(payload, app_settings.JWT_SECRET, algorithm=app_settings.JWT_ALGORITHM)
+    if jti is not None:
+        payload["jti"] = jti
+    secret = app_settings.JWT_REFRESH_SECRET if token_type == "refresh" else app_settings.JWT_SECRET
+    return jwt.encode(payload, secret, algorithm=app_settings.JWT_ALGORITHM)
 
 
-def decode_token(token: str) -> dict | None:
+def decode_token(token: str, token_type: str = "access") -> dict | None:
     try:
+        secret = app_settings.JWT_REFRESH_SECRET if token_type == "refresh" else app_settings.JWT_SECRET
         return jwt.decode(
             token,
-            app_settings.JWT_SECRET,
+            secret,
             algorithms=[app_settings.JWT_ALGORITHM],
         )
     except JWTError:

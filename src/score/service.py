@@ -156,10 +156,16 @@ class ScoreService:
             vehicle.cubic_capacity,
             vehicle.fuel_type,
         )
+
+        # Challans are already fresh — get_dbs_record called refresh_challans_if_stale.
+        # list_active_challans is a plain DB read with no vendor call.
+        violations = await self.challan_svc.list_active_challans(vehicle_number)
+
         response = DBSWithPremium(
             dbs_stats=score_record,
             base_premium=base_premium,
-            adjusted_premium=adjusted_premium
+            adjusted_premium=adjusted_premium,
+            violations=violations,
         )
 
         if usage is not None:

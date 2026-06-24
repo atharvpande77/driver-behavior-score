@@ -21,4 +21,5 @@ dependencies = [
     "uvloop>=0.22.1; sys_platform != 'win32'",
     "uvicorn>=0.42.0",
     "slowapi>=0.1.10",
+    "email-validator>=2.3.0",
 ]

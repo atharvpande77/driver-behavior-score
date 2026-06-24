@@ -22,6 +22,7 @@ class AppSettings(BaseSettings):
     SUREPASS_API_KEY: str
     
     JWT_SECRET: str
+    JWT_REFRESH_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_EXPIRY_SECONDS: int = 900
     JWT_REFRESH_EXPIRY_SECONDS: int = 604800
@@ -36,6 +37,10 @@ class AppSettings(BaseSettings):
     AUTH_LOGIN_RATE_LIMIT: str = "5/minute"
     AUTH_REGISTER_RATE_LIMIT: str = "3/minute"
     AUTH_REFRESH_RATE_LIMIT: str = "20/minute"
+
+    # Rate limits for public endpoints
+    PUBLIC_SCORE_RATE_LIMIT: str = "60/minute"
+    PUBLIC_VEHICLES_RATE_LIMIT: str = "60/minute"
 
     OPENAI_API_KEY: str
     

@@ -1,3 +1,4 @@
+from fastapi import Request
 from slowapi import Limiter
 
 from src.core.utils import get_ipaddr
@@ -13,3 +14,14 @@ from src.core.utils import get_ipaddr
 # Rate limits are read from AppSettings (AUTH_*_RATE_LIMIT) and applied via
 # @limiter.limit(...) decorators on the individual auth routes in router.py.
 limiter = Limiter(key_func=get_ipaddr)
+
+
+def key_by_api_key_or_ip(request: Request) -> str:
+    """Rate limit key function: uses the validated API key ID if present,
+
+    otherwise falls back to client IP address.
+    """
+    api_key_id = getattr(request.state, "api_key_id", None)
+    if api_key_id:
+        return f"apikey:{api_key_id}"
+    return get_ipaddr(request)

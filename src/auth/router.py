@@ -94,6 +94,18 @@ async def refresh_tokens(
     )
 
 
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def logout(
+    response: Response,
+    auth_svc: GetAuthService,
+):
+    auth_svc.logout(response)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get(
     "/api-keys",
     response_model=list[APIKeyResponse],
@@ -152,3 +164,25 @@ async def rename_api_key(
 ):
     api_key = await api_key_svc.rename_key(current_user.id, key_id, payload.name)
     return api_key
+
+
+@router.post(
+    "/api-keys/{key_id}/rotate",
+    response_model=CreateAPIKeyResponse,
+)
+async def rotate_api_key(
+    key_id: UUID,
+    current_user: GetCurrentDashboardUser,
+    api_key_svc: GetAPIKeyService,
+):
+    raw_key, api_key = await api_key_svc.rotate_key(current_user.id, key_id)
+    return CreateAPIKeyResponse(
+        id=api_key.id,
+        name=api_key.name,
+        key_prefix=api_key.key_prefix,
+        is_active=api_key.is_active,
+        created_at=api_key.created_at,
+        last_used_at=api_key.last_used_at,
+        expires_at=api_key.expires_at,
+        raw_key=raw_key,
+    )
