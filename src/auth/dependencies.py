@@ -6,8 +6,8 @@ from src.auth.repository import APIKeyRepository, AuthRepository
 from src.auth.service import APIKeyService, AuthService
 from src.auth.types import AuthType
 
-from src.database import Session
-from src.models import APIKey, DashboardUser
+from src.core.database import Session
+from src.core.models import APIKey, DashboardUser
 
 
 def get_access_token(access_token: Annotated[str | None, Cookie()] = None) -> str | None:

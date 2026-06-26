@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from src.auth.dependencies import verify_api_key
 from src.score.dependencies import get_score_service
 from src.score.service import ScoreService
 from src.score.schemas import DBSWithPremiumResponse
-from src.dependencies import ValidateVehicleNumber
-from src.dependencies import GetUsageRecorder
+from src.core.dependencies import ValidateVehicleNumber
+from src.core.dependencies import GetUsageRecorder
+from src.core.rate_limit import limiter, key_by_api_key_or_ip
+from src.core.config import app_settings
 
 
 router = APIRouter(
@@ -16,9 +18,49 @@ router = APIRouter(
 
 @router.get(
     "/{vehicle_number}",
-    response_model=DBSWithPremiumResponse
+    response_model=DBSWithPremiumResponse,
+    responses={
+        200: {
+            "description": "Successful response containing vehicle score stats, premium adjustments, and traffic violations.",
+            "model": DBSWithPremiumResponse,
+        },
+        401: {
+            "description": "Unauthorized - Missing, inactive, or invalid client API key.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Authentication required."}
+                }
+            },
+        },
+        422: {
+            "description": "Unprocessable Entity - Input validation check failed for vehicle registration number format.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Missing vehicle number."}
+                }
+            },
+        },
+        429: {
+            "description": "Too Many Requests - Rate limit exceeded (60 requests per minute).",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Rate limit exceeded: 60 per 1 minute"}
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - Unexpected error encountered by the server.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Internal Server Error"}
+                }
+            },
+        },
+    }
 )
+@limiter.limit(app_settings.PUBLIC_SCORE_RATE_LIMIT, key_func=key_by_api_key_or_ip)
 async def score_controller(
+    request: Request,
     vehicle_number: ValidateVehicleNumber,
     usage: GetUsageRecorder,
     score_svc: ScoreService = Depends(get_score_service),

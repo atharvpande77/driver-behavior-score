@@ -4,8 +4,8 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Request
 
-from src.database import async_session
-from src.logging_utils import get_logger, log_event, reset_request_id, set_request_id
+from src.core.database import async_session
+from src.core.logging_utils import get_logger, log_event, reset_request_id, set_request_id
 from src.usage.repository import UsageEventRepository
 from src.usage.service import UsageEventService
 
@@ -93,12 +93,18 @@ def register_usage_event_collection_middleware(app: FastAPI) -> None:
         duration_ms = int((perf_counter() - start) * 1000)
         response.headers["X-Request-ID"] = request_id
         if getattr(request.state, "collect_usage", True):
+            if response.status_code < 400:
+                error_type = None
+            elif response.status_code < 500:
+                error_type = "ClientError"
+            else:
+                error_type = "ServerError"
             _schedule_usage_persistence(
                 app,
                 request,
                 total_latency_ms=duration_ms,
                 http_status_code=response.status_code,
-                error_type=None if response.status_code < 400 else response.body.decode()[:1000] if response.body else "UnknownClientError",
+                error_type=error_type,
             )
         log_event(
             logger,

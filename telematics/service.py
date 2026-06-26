@@ -223,7 +223,7 @@ class TelematicsService:
         db_start = time.time()
         try:
             vehicle_number = await self.get_vehicle_number_from_device_imei(imei)
-        except Exception as e:
+        except Exception:
             db_ms = (time.time() - db_start) * 1000.0
             processing_ms = (time.time() - start_time) * 1000.0
             log_event(
@@ -280,7 +280,7 @@ class TelematicsService:
                 database_ms=round(db_ms, 2),
                 processing_ms=round(processing_ms, 2)
             )
-        except Exception as e:
+        except Exception:
             db_ms = (time.time() - db_start) * 1000.0
             processing_ms = (time.time() - start_time) * 1000.0
             log_event(

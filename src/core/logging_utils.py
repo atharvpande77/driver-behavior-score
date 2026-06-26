@@ -4,7 +4,7 @@ import logging.config
 import sys
 from typing import Any
 
-from src.config import app_settings
+from src.core.config import app_settings
 
 
 _REQUEST_ID_CTX: contextvars.ContextVar[str] = contextvars.ContextVar(
@@ -89,11 +89,11 @@ def configure_logging() -> None:
             "version": 1,
             "disable_existing_loggers": False,
             "filters": {
-                "request_id_filter": {"()": "src.logging_utils.RequestIdFilter"},
+                "request_id_filter": {"()": "src.core.logging_utils.RequestIdFilter"},
             },
             "formatters": {
                 "plain_structured": {
-                    "()": "src.logging_utils.ColorStructuredFormatter",
+                    "()": "src.core.logging_utils.ColorStructuredFormatter",
                     "use_colors": app_settings.LOG_USE_COLORS,
                 }
             },

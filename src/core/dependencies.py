@@ -4,8 +4,8 @@ from dataclasses import asdict
 from fastapi import Depends, HTTPException, Request, status
 from typing import Annotated
 
-from src.types import UsageStatsPerVehicle
-from src.utils import serialize_vehicle_number
+from src.core.types import UsageStatsPerVehicle
+from src.core.utils import serialize_vehicle_number
 
 
 def validate_vehicle_number(request: Request):

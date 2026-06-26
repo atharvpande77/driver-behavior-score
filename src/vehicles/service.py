@@ -3,9 +3,9 @@ from src.vehicles.ingest import RCIngest
 from src.vehicles.types import VehicleDTO, NormalizedRCFetchResult
 from src.vehicles.utils import mask_owner_name
 
-from src.models import Vehicle
-from src.types import APINames, UsageStatsPerVehicle
-from src.dependencies import UsageRecorder
+from src.core.models import Vehicle
+from src.core.types import APINames, UsageStatsPerVehicle
+from src.core.dependencies import UsageRecorder
 
 
 

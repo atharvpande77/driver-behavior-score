@@ -9,7 +9,7 @@ from src.violations.types import (
     NormalizedChallanOffenseDetail,
 )
 
-from src.config import app_settings
+from src.core.config import app_settings
 
 
 # Later, use this base class to implement other providers like MahaTraffic, etc. For now, we only have Surepass, so we can keep it simple and directly implement the ingest logic there. But this structure allows us to easily add more providers in the future without changing the service layer.

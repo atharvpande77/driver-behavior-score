@@ -4,8 +4,8 @@ from sqlalchemy import insert
 
 from src.vehicles.types import NormalizedRC
 
-from src.database import BaseDBRepository
-from src.models import Vehicle
+from src.core.database import BaseDBRepository
+from src.core.models import Vehicle
 
 
 class VehicleRepository(BaseDBRepository):

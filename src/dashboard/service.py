@@ -21,10 +21,10 @@ from src.violations.service import ChallanService
 from src.vehicles.repository import VehicleRepository
 from src.vehicles.types import VehicleDTO
 from src.vehicles.service import VehicleService
-from src.logging_utils import get_logger, log_event
+from src.core.logging_utils import get_logger, log_event
 from src.dashboard.utils import get_risk_category
-from src.types import APINames, UsageStatsPerVehicle
-from src.dependencies import UsageRecorder
+from src.core.types import APINames, UsageStatsPerVehicle
+from src.core.dependencies import UsageRecorder
 
 
 class DashboardService:

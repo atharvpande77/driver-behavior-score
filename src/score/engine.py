@@ -2,7 +2,7 @@ from datetime import date
 
 from src.score.types import DBSStats, ViolationCounts, RiskLevel
 
-from src.models import Challan
+from src.core.models import Challan
 from src.violations.types import ChallanSeverity
 
 

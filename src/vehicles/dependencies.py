@@ -5,8 +5,8 @@ from src.vehicles.repository import VehicleRepository
 from src.vehicles.ingest import RCIngest
 from src.vehicles.service import VehicleService
 
-from src.database import Session
-from src.dependencies import GetHttpClient
+from src.core.database import Session
+from src.core.dependencies import GetHttpClient
 
     
 async def get_vehicle_repository(db: Session) -> VehicleRepository:

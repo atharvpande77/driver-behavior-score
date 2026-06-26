@@ -4,9 +4,9 @@ from datetime import date
 
 from src.vehicles.types import NormalizedRC, NormalizedRCFetchResult
 
-from src.logging_utils import get_logger, log_event
+from src.core.logging_utils import get_logger, log_event
 
-from src.config import app_settings
+from src.core.config import app_settings
 
 
 class RCIngest:

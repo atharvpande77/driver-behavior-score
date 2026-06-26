@@ -5,8 +5,8 @@ from src.violations.service import ChallanService
 from src.violations.repository import ChallanRepository
 from src.violations.ingest import ChallanIngest
 
-from src.database import Session
-from src.dependencies import GetHttpClient
+from src.core.database import Session
+from src.core.dependencies import GetHttpClient
 
 
 async def get_challan_ingest(http_client: GetHttpClient) -> ChallanIngest:

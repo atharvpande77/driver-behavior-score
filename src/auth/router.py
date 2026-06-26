@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from src.auth.dependencies import (
     GetAPIKeyService,
@@ -19,6 +19,8 @@ from src.auth.schemas import (
     RegisterResponse,
     LoginResponse,
 )
+from src.core.rate_limit import limiter
+from src.core.config import app_settings
 
 
 router = APIRouter(tags=["auth"], dependencies=[Depends(disable_usage_collection)])
@@ -29,7 +31,9 @@ router = APIRouter(tags=["auth"], dependencies=[Depends(disable_usage_collection
     response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit(app_settings.AUTH_REGISTER_RATE_LIMIT)
 async def register(
+    request: Request,
     payload: RegisterRequest,
     auth_svc: GetAuthService,
 ):
@@ -44,7 +48,9 @@ async def register(
     "/login",
     response_model=LoginResponse,
 )
+@limiter.limit(app_settings.AUTH_LOGIN_RATE_LIMIT)
 async def login(
+    request: Request,
     payload: LoginRequest,
     auth_svc: GetAuthService,
     response: Response
@@ -68,7 +74,9 @@ async def login(
     "/refresh",
     response_model=LoginResponse,
 )
+@limiter.limit(app_settings.AUTH_REFRESH_RATE_LIMIT)
 async def refresh_tokens(
+    request: Request,
     refresh_token: GetRefreshToken,
     auth_svc: GetAuthService,
     response: Response,
@@ -84,6 +92,18 @@ async def refresh_tokens(
         },
         access_expires_in=refresh_data["access_expires_in"],
     )
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def logout(
+    response: Response,
+    auth_svc: GetAuthService,
+):
+    auth_svc.logout(response)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -144,3 +164,25 @@ async def rename_api_key(
 ):
     api_key = await api_key_svc.rename_key(current_user.id, key_id, payload.name)
     return api_key
+
+
+@router.post(
+    "/api-keys/{key_id}/rotate",
+    response_model=CreateAPIKeyResponse,
+)
+async def rotate_api_key(
+    key_id: UUID,
+    current_user: GetCurrentDashboardUser,
+    api_key_svc: GetAPIKeyService,
+):
+    raw_key, api_key = await api_key_svc.rotate_key(current_user.id, key_id)
+    return CreateAPIKeyResponse(
+        id=api_key.id,
+        name=api_key.name,
+        key_prefix=api_key.key_prefix,
+        is_active=api_key.is_active,
+        created_at=api_key.created_at,
+        last_used_at=api_key.last_used_at,
+        expires_at=api_key.expires_at,
+        raw_key=raw_key,
+    )

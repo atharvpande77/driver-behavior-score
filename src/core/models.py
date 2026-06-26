@@ -26,7 +26,7 @@ from sqlalchemy.orm import (
 from datetime import date, datetime
 import uuid
 
-from src.database import Base
+from src.core.database import Base
 
 
 class Vehicle(Base):
@@ -287,6 +287,7 @@ class APIKey(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
 
     __table_args__ = (
         Index("ix_api_keys_created_by", "created_by"),
@@ -542,3 +543,23 @@ class TelematicsDevice(Base):
 
     def __repr__(self) -> str:
         return f"<TelematicsDevice imei={self.imei} vehicle={self.vehicle_reg_no}>"
+
+
+class BlacklistedToken(Base):
+    __tablename__ = "blacklisted_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        init=False,
+        server_default=text("gen_random_uuid()"),
+    )
+    jti: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, init=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_blacklisted_tokens_jti", "jti"),
+    )

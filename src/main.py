@@ -2,9 +2,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from contextlib import asynccontextmanager
 import httpx
+
 
 from src.usage.middleware import register_usage_event_collection_middleware
 from src.usage.router import router as usage_router
@@ -13,7 +16,9 @@ from src.violations.router import router as violations_router
 from src.vehicles.router import router as vehicles_router
 from src.dashboard.router import router as dashboard_router
 from src.auth.router import router as auth_router
-from src.logging_utils import (
+from src.core.rate_limit import limiter
+from src.core.config import app_settings
+from src.core.logging_utils import (
     configure_logging,
     get_logger,
     log_event,
@@ -55,18 +60,26 @@ app = FastAPI(
     summary=APP_SUMMARY,
     description=APP_DESCRIPTION,
     version="0.1.0",
-    root_path="/dbs",
     lifespan=lifespan
 )
 
 
+_cors_origins = [
+    origin.strip()
+    for origin in app_settings.CORS_ALLOWED_ORIGINS.split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.middleware("http")
@@ -119,6 +132,14 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         response.headers["X-Request-ID"] = request_id
     return response
 
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to DBS Backend APIs"}
 
 @app.get("/health", summary="Health Check", tags=["health"])
 async def health_check():
