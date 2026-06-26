@@ -18,7 +18,45 @@ router = APIRouter(
 
 @router.get(
     "/{vehicle_number}",
-    response_model=VehicleResponse
+    response_model=VehicleResponse,
+    responses={
+        200: {
+            "description": "Successful response containing RC specs and registration data for the vehicle.",
+            "model": VehicleResponse,
+        },
+        401: {
+            "description": "Unauthorized - Missing, inactive, or invalid client API key.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Authentication required."}
+                }
+            },
+        },
+        422: {
+            "description": "Unprocessable Entity - Input validation check failed for vehicle registration number format.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Missing vehicle number."}
+                }
+            },
+        },
+        429: {
+            "description": "Too Many Requests - Rate limit exceeded (60 requests per minute).",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Rate limit exceeded: 60 per 1 minute"}
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - Unexpected error encountered by the server.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Internal Server Error"}
+                }
+            },
+        },
+    }
 )
 @limiter.limit(app_settings.PUBLIC_VEHICLES_RATE_LIMIT, key_func=key_by_api_key_or_ip)
 async def get_vehicle(
