@@ -4,6 +4,7 @@ from workers.trips.constants import (
     NIGHT_END_HOUR,
     NIGHT_START_HOUR,
     ODOMETER_RESET_THRESHOLD_KM,
+    ODOMETER_NOISE_THRESHOLD_KM,
 )
 from workers.types import EventRow, OpenTrip
 from workers.utils import haversine_km
@@ -29,7 +30,10 @@ def segment_distance(
         delta = curr_odometer - prev_odometer
         if 0.0 <= delta <= ODOMETER_RESET_THRESHOLD_KM:
             return delta
+        elif delta < 0.0:
+            return 0.0
     return haversine_km(prev_lat, prev_lon, curr_lat, curr_lon)
+
 
 
 def new_open_trip(vehicle_reg_no: str | None, imei: str, event: EventRow) -> OpenTrip:

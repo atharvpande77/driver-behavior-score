@@ -27,3 +27,15 @@ MIN_SPEED_THRESHOLD_KMPH: float = 2.0
 # exceeds this value, it indicates an odometer reset or a telemetry jump,
 # causing the distance calculation to fall back to GPS haversine formula.
 ODOMETER_RESET_THRESHOLD_KM: float = 500.0
+
+# The threshold (in km) below which a negative odometer delta is considered
+# telemetry noise/rounding fluctuation rather than an actual odometer reset.
+# Negative deltas within this threshold are treated as zero distance, avoiding
+# unnecessary fallback to GPS haversine calculations.
+ODOMETER_NOISE_THRESHOLD_KM: float = 1.0
+
+# The maximum speed threshold (in km/h) to filter out highly distorted GPS speed noise.
+# GPS speed values above this threshold are ignored for trip statistics and maximum speed calculations.
+MAX_SPEED_THRESHOLD_KMPH: float = 150.0
+
+

@@ -14,6 +14,8 @@ from workers.trips.constants import (
     MIN_SPEED_THRESHOLD_KMPH,
     NIGHT_END_HOUR,
     NIGHT_START_HOUR,
+    ODOMETER_NOISE_THRESHOLD_KM,
+    MAX_SPEED_THRESHOLD_KMPH,
 )
 from workers.trips.utils import is_night, new_open_trip, segment_distance
 
@@ -73,7 +75,7 @@ class TripDetector:
         min_speed only considers readings >= MIN_SPEED_THRESHOLD_KMPH so that
         near-zero idle/noise values don't pollute the minimum.
         """
-        if speed is None or speed < 0:
+        if speed is None or speed < 0 or speed > MAX_SPEED_THRESHOLD_KMPH:
             return
         if trip.max_speed_kmph is None or speed > trip.max_speed_kmph:
             trip.max_speed_kmph = speed
@@ -218,7 +220,12 @@ class TripDetector:
                     open_trip.last_lat = event.latitude
                     open_trip.last_lon = event.longitude
                     if event.distance is not None:
-                        open_trip.last_odometer_km = event.distance
+                        if (
+                            open_trip.last_odometer_km is None
+                            or event.distance >= open_trip.last_odometer_km
+                            or (open_trip.last_odometer_km - event.distance >= ODOMETER_NOISE_THRESHOLD_KM)
+                        ):
+                            open_trip.last_odometer_km = event.distance
                     cls._accumulate_speed(open_trip, event.speed)
                     cls._accumulate_harsh_events(open_trip, event.packet_type)
 
