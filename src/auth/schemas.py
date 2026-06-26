@@ -22,7 +22,7 @@ class RegisterRequest(BaseModel):
 class RegisterResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    email: EmailStr
+    email: str
     name: str = Field(max_length=128)
     active: bool
 
@@ -33,7 +33,7 @@ class LoginRequest(BaseModel):
 
 
 class UserMetadata(BaseModel):
-    email: EmailStr
+    email: str
     name: str
 
 
