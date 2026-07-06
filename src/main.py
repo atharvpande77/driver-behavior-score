@@ -143,4 +143,4 @@ async def root():
 
 @app.get("/health", summary="Health Check", tags=["health"])
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "environment": app_settings.ENVIRONMENT}

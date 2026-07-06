@@ -1,0 +1,51 @@
+# docker-compose.staging.yml
+#
+# Staging environment overlay.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.staging.yml up
+#
+# Key differences from dev:
+#   - telematics and workers are disabled (placed behind the "full" profile)
+#   - Postgres uses a separate DB (dbs_staging) and volume (postgres_staging_data)
+#   - Postgres is exposed on host port 5433 (dev uses 5432)
+#   - Backend is exposed on host port 8001 (dev uses 8000)
+#   - ENVIRONMENT=staging is injected into the backend container
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_STAGING_DB:-dbs_staging}
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql
+
+  backend:
+    volumes:
+      - .:/app
+      - /app/.venv
+    env_file:
+      - .env.staging
+    ports:
+      - "${STAGING_APP_PORT:-8001}:8000"
+    environment:
+      ENVIRONMENT: staging
+      UV_PROJECT_ENVIRONMENT: /tmp/.venv
+    command: >
+      sh -c "uv run alembic upgrade head &&
+      uv run uvicorn src.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/src"
+
+  telematics:
+    profiles:
+      - full  # not started unless --profile full is passed
+
+  workers:
+    profiles:
+      - full  # not started unless --profile full is passed
+
+volumes:
+  postgres_staging_data:
+    driver: local

@@ -78,12 +78,12 @@ class ChallanIngest:
         start = time.perf_counter()
         try:
             response = await self.client.post(
-                f"{app_settings.SUREPASS_BASE_URL}/rc/rc-related/challan-advanced",
+                f"{app_settings.effective_surepass_base_url}/rc/rc-related/challan-advanced",
                 data={
                     "rc_number": vehicle_number
                 },
                 headers={
-                    "Authorization": app_settings.SUREPASS_API_KEY
+                    "Authorization": app_settings.effective_surepass_api_key
                 }
             )
             response.raise_for_status()

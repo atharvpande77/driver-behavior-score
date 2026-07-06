@@ -1,4 +1,5 @@
 from typing import Optional
+from pydantic import computed_field
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,6 +13,10 @@ class AppSettings(BaseSettings):
     APP_PORT: int
     CORS_ALLOWED_ORIGINS: str = ""  # comma-separated list e.g. "https://app.example.com,https://admin.example.com"
 
+    # Deployment environment. Controls sandbox routing and staging-specific guards.
+    # Valid values: "development" | "staging" | "production"
+    ENVIRONMENT: str = "development"
+
     DATABASE_URL: Optional[str] = None
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
@@ -20,6 +25,27 @@ class AppSettings(BaseSettings):
     
     SUREPASS_BASE_URL: str
     SUREPASS_API_KEY: str
+
+    # Surepass sandbox credentials — used when ENVIRONMENT == "staging".
+    # If blank, falls back to SUREPASS_BASE_URL / SUREPASS_API_KEY.
+    SUREPASS_SANDBOX_BASE_URL: str = ""
+    SUREPASS_SANDBOX_API_KEY: str = ""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_surepass_base_url(self) -> str:
+        """Returns the sandbox Surepass base URL when in staging, otherwise production."""
+        if self.ENVIRONMENT == "staging" and self.SUREPASS_SANDBOX_BASE_URL:
+            return self.SUREPASS_SANDBOX_BASE_URL
+        return self.SUREPASS_BASE_URL
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_surepass_api_key(self) -> str:
+        """Returns the sandbox Surepass API key when in staging, otherwise production."""
+        if self.ENVIRONMENT == "staging" and self.SUREPASS_SANDBOX_API_KEY:
+            return self.SUREPASS_SANDBOX_API_KEY
+        return self.SUREPASS_API_KEY
     
     JWT_SECRET: str
     JWT_REFRESH_SECRET: str
