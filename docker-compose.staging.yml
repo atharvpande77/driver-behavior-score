@@ -39,10 +39,14 @@ services:
   telematics:
     profiles:
       - full  # not started unless --profile full is passed
+    env_file:
+      - .env.staging
 
   workers:
     profiles:
       - full  # not started unless --profile full is passed
+    env_file:
+      - .env.staging
 
 volumes:
   postgres_staging_data:
