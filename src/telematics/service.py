@@ -122,7 +122,8 @@ class TelematicsService:
         harsh_acc   = int(row.harsh_acceleration)
         harsh_brk   = int(row.harsh_braking)
         harsh_trn   = int(row.harsh_turning)
-        total_harsh = harsh_acc + harsh_brk + harsh_trn
+        overspeeding = int(row.overspeeding_count)
+        total_harsh = harsh_acc + harsh_brk + harsh_trn + overspeeding
         harsh_per_100 = round(total_harsh / (total_km / 100), 1) if total_km else 0.0
 
         return {
@@ -155,6 +156,7 @@ class TelematicsService:
                 "harsh_acceleration":    harsh_acc,
                 "harsh_braking":         harsh_brk,
                 "harsh_turning":         harsh_trn,
+                "overspeeding_count":     overspeeding,
                 "total_harsh_events":    total_harsh,
                 "harsh_events_per_100km": harsh_per_100,
             },

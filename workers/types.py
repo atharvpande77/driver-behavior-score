@@ -45,6 +45,7 @@ class OpenTrip:
     harsh_acceleration_count: int = 0
     harsh_braking_count: int = 0
     harsh_turning_count: int = 0
+    overspeeding_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,7 @@ class CloseTripAction:
     harsh_acceleration_count: int
     harsh_braking_count: int
     harsh_turning_count: int
+    overspeeding_count: int
 
 
 TripAction = OpenTripAction | CloseTripAction

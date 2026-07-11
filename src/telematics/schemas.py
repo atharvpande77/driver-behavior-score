@@ -82,6 +82,7 @@ class SafetyStats(BaseModel):
     harsh_acceleration: int
     harsh_braking: int
     harsh_turning: int
+    overspeeding_count: int
     total_harsh_events: int
     harsh_events_per_100km: float
 

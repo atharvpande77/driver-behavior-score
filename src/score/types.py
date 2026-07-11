@@ -51,3 +51,5 @@ class DBSLookupResult:
     challan_fetch_failed: bool = False
     challan_error_info: str | None = None
     vendor_challan_latency_ms: float | None = None
+    challans: list[ChallanDTO] = field(default_factory=list)
+

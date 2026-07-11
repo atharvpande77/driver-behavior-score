@@ -1,4 +1,3 @@
-import uuid
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -82,6 +81,7 @@ class TelematicsRepository(BaseDBRepository):
                 func.coalesce(func.sum(VehicleTrip.harsh_acceleration_count), 0).label("harsh_acceleration"),
                 func.coalesce(func.sum(VehicleTrip.harsh_braking_count), 0).label("harsh_braking"),
                 func.coalesce(func.sum(VehicleTrip.harsh_turning_count), 0).label("harsh_turning"),
+                func.coalesce(func.sum(VehicleTrip.overspeeding_count), 0).label("overspeeding_count"),
             )
             .select_from(VehicleTrip)
             .where(

@@ -38,4 +38,10 @@ ODOMETER_NOISE_THRESHOLD_KM: float = 1.0
 # GPS speed values above this threshold are ignored for trip statistics and maximum speed calculations.
 MAX_SPEED_THRESHOLD_KMPH: float = 150.0
 
+# Packet type identifier for an overspeeding alert event.
+# When a telematics event carries this packet type, it means the vehicle
+# exceeded the configured speed limit at that moment.
+OVERSPEEDING_PACKET_TYPE: str = "OS"
+
+
 
