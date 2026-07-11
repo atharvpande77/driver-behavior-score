@@ -17,15 +17,17 @@
 
 services:
   postgres:
+    container_name: dbs_staging_db
     environment:
       POSTGRES_DB: dbs_staging     # hardcoded — overrides ${POSTGRES_DB} from base
     volumes:
       - postgres_staging_data:/var/lib/postgresql
 
   backend:
+    container_name: dbs_staging_backend
     env_file:
       - .env.staging
-    ports:
+    ports: !override
       - "${STAGING_APP_PORT:-8001}:8000"
     environment:
       ENVIRONMENT: staging
@@ -37,12 +39,14 @@ services:
     # No command override — uses Dockerfile CMD (gunicorn)
 
   telematics:
+    container_name: dbs_staging_telematics
     profiles:
       - full  # not started unless --profile full is passed
     env_file:
       - .env.staging
 
   workers:
+    container_name: dbs_staging_workers
     profiles:
       - full  # not started unless --profile full is passed
     env_file:
