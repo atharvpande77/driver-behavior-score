@@ -71,6 +71,17 @@ class APIKeyRepository(BaseDBRepository):
         )
         return result.scalar_one_or_none()
 
+    async def get_by_hash_with_owner(self, key_hash: str) -> tuple[APIKey, bool] | None:
+        result = await self.db.execute(
+            select(APIKey, DashboardUser.active)
+            .join(DashboardUser, APIKey.created_by == DashboardUser.id)
+            .where(APIKey.key_hash == key_hash)
+        )
+        row = result.first()
+        if not row:
+            return None
+        return row[0], row[1]
+
     async def get_by_id(self, key_id: uuid.UUID) -> APIKey | None:
         result = await self.db.execute(
             select(APIKey).where(APIKey.id == key_id)
@@ -125,11 +136,13 @@ class APIKeyRepository(BaseDBRepository):
         api_key.is_active = False
         await self.flush()
 
-    async def update_last_used(self, api_key: APIKey) -> None:
+    async def update_last_used(self, api_key: APIKey) -> bool:
         now = datetime.now(timezone.utc)
         if api_key.last_used_at is None or (now - api_key.last_used_at).total_seconds() > 300:
             api_key.last_used_at = now
             await self.flush()
+            return True
+        return False
 
     async def rename(self, api_key: APIKey, name: str) -> None:
         api_key.name = name

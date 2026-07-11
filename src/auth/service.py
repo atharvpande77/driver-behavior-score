@@ -248,15 +248,22 @@ class APIKeyService:
             )
 
         key_hash = hash_api_key(raw_key)
-        api_key = await self.repo.get_by_hash(key_hash)
-        if api_key is None or not api_key.is_active:
+        key_and_owner = await self.repo.get_by_hash_with_owner(key_hash)
+        if key_and_owner is None:
             log_event(self.logger, "WARNING", "auth.api_key.verify.invalid_or_inactive")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or inactive API key.",
             )
 
-        owner_active = await self.repo.is_owner_active(api_key.id)
+        api_key, owner_active = key_and_owner
+        if not api_key.is_active:
+            log_event(self.logger, "WARNING", "auth.api_key.verify.invalid_or_inactive")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or inactive API key.",
+            )
+
         if not owner_active:
             log_event(
                 self.logger,
@@ -286,8 +293,10 @@ class APIKeyService:
                 detail="Invalid or inactive API key.",
             )
 
-        await self.repo.update_last_used(api_key)
-        await self.repo.commit()
+        updated = await self.repo.update_last_used(api_key)
+        if updated:
+            await self.repo.commit()
+
         log_event(
             self.logger,
             "INFO",
