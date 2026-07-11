@@ -1,42 +1,40 @@
 # docker-compose.staging.yml
 #
 # Staging environment overlay.
-# Usage: docker compose -f docker-compose.yml -f docker-compose.staging.yml up
+# Usage:
+#   docker compose \
+#     --env-file .env.staging \
+#     -f docker-compose.yml \
+#     -f docker-compose.staging.yml \
+#     up -d
 #
 # Key differences from dev:
-#   - telematics and workers are disabled (placed behind the "full" profile)
+#   - telematics and workers are disabled (profile: full)
 #   - Postgres uses a separate DB (dbs_staging) and volume (postgres_staging_data)
-#   - Postgres is exposed on host port 5433 (dev uses 5432)
-#   - Backend is exposed on host port 8001 (dev uses 8000)
-#   - ENVIRONMENT=staging is injected into the backend container
+#   - Backend uses gunicorn (prod-replica, no hot-reload, no source volume mount)
+#   - Backend port 8001 (dev uses 8000)
+#   - Critical vars pinned in environment: block to prevent .env bleedthrough
 
 services:
   postgres:
-    ports:
-      - "127.0.0.1:5433:5432"
     environment:
-      POSTGRES_DB: ${POSTGRES_STAGING_DB:-dbs_staging}
+      POSTGRES_DB: dbs_staging     # hardcoded — overrides ${POSTGRES_DB} from base
     volumes:
       - postgres_staging_data:/var/lib/postgresql
 
   backend:
-    volumes:
-      - .:/app
-      - /app/.venv
     env_file:
       - .env.staging
     ports:
       - "${STAGING_APP_PORT:-8001}:8000"
     environment:
       ENVIRONMENT: staging
-      UV_PROJECT_ENVIRONMENT: /tmp/.venv
-    command: >
-      sh -c "uv run alembic upgrade head &&
-      uv run uvicorn src.main:app
-      --host 0.0.0.0
-      --port 8000
-      --reload
-      --reload-dir /app/src"
+      # Pinned here so it can never be shadowed by the base .env file.
+      # ${POSTGRES_USER} and ${POSTGRES_PASSWORD} are resolved from
+      # --env-file .env.staging at compose parse time.
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/dbs_staging"
+    # No volumes — uses the built Docker image (prod-replica behavior)
+    # No command override — uses Dockerfile CMD (gunicorn)
 
   telematics:
     profiles:
