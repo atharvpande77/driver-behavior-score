@@ -11,7 +11,7 @@ class AppSettings(BaseSettings):
     )
     
     APP_PORT: int
-    CORS_ALLOWED_ORIGINS: str = ""  # comma-separated list e.g. "https://app.example.com,https://admin.example.com"
+    CORS_ALLOWED_ORIGINS: str  # comma-separated list e.g. "https://app.example.com,https://admin.example.com"
 
     # Deployment environment. Controls sandbox routing and staging-specific guards.
     # Valid values: "development" | "staging" | "production"
