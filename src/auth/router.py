@@ -26,22 +26,22 @@ from src.core.config import app_settings
 router = APIRouter(tags=["auth"], dependencies=[Depends(disable_usage_collection)])
 
 
-@router.post(
-    "/register",
-    response_model=RegisterResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-@limiter.limit(app_settings.AUTH_REGISTER_RATE_LIMIT)
-async def register(
-    request: Request,
-    payload: RegisterRequest,
-    auth_svc: GetAuthService,
-):
-    return await auth_svc.register(
-        email=payload.email,
-        password=payload.password,
-        name=payload.name,
-    )
+# @router.post(
+#     "/register",
+#     response_model=RegisterResponse,
+#     status_code=status.HTTP_201_CREATED,
+# )
+# @limiter.limit(app_settings.AUTH_REGISTER_RATE_LIMIT)
+# async def register(
+#     request: Request,
+#     payload: RegisterRequest,
+#     auth_svc: GetAuthService,
+# ):
+#     return await auth_svc.register(
+#         email=payload.email,
+#         password=payload.password,
+#         name=payload.name,
+#     )
 
 
 @router.post(
