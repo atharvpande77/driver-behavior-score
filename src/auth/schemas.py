@@ -28,8 +28,8 @@ class RegisterResponse(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=254)
+    password: str = Field(min_length=1, max_length=128)
 
 
 class UserMetadata(BaseModel):
