@@ -1,7 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
+
+from src.telematics.utils import mask_imei
 
 
 # ── Endpoint 1: Device list ───────────────────────────────────────────────────
@@ -12,6 +14,10 @@ class TelematicsDeviceResponse(BaseModel):
     imei: str
     vehicle_reg_no: str
     last_seen_at: datetime | None
+
+    @field_serializer("imei")
+    def serialize_imei(self, value: str) -> str:
+        return mask_imei(value) or value
 
 
 class PaginationMeta(BaseModel):
