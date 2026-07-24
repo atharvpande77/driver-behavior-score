@@ -40,7 +40,3 @@ services:
         required: true
     environment:
       ENVIRONMENT: production
-
-volumes:
-  postgres_prod_data:
-    driver: local
