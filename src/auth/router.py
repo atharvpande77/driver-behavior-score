@@ -15,8 +15,6 @@ from src.auth.schemas import (
     CreateAPIKeyResponse,
     LoginRequest,
     RenameAPIKeyRequest,
-    RegisterRequest,
-    RegisterResponse,
     LoginResponse,
 )
 from src.core.rate_limit import limiter

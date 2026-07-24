@@ -72,7 +72,8 @@ class TripRepository:
                 day_distance_km, night_distance_km,
                 day_duration_seconds, night_duration_seconds,
                 max_speed_kmph, min_speed_kmph,
-                harsh_acceleration_count, harsh_braking_count, harsh_turning_count
+                harsh_acceleration_count, harsh_braking_count, harsh_turning_count,
+                overspeeding_count
             FROM vehicle_trips
             WHERE id = $1
         """, trip_id)
@@ -101,6 +102,7 @@ class TripRepository:
             harsh_acceleration_count=row["harsh_acceleration_count"] or 0,
             harsh_braking_count=row["harsh_braking_count"] or 0,
             harsh_turning_count=row["harsh_turning_count"] or 0,
+            overspeeding_count=row["overspeeding_count"] or 0,
         )
 
     async def fetch_new_events(
@@ -145,13 +147,15 @@ class TripRepository:
                 total_distance_km, total_duration_seconds,
                 day_distance_km, night_distance_km,
                 day_duration_seconds, night_duration_seconds,
-                harsh_acceleration_count, harsh_braking_count, harsh_turning_count
+                harsh_acceleration_count, harsh_braking_count, harsh_turning_count,
+                overspeeding_count
             )
-            VALUES ($1, $2, $3, 'open', $4, $5, $6, $7, $5, $6, $7, 0.0, 0, 0.0, 0.0, 0, 0, $8, $9, $10)
+            VALUES ($1, $2, $3, 'open', $4, $5, $6, $7, $5, $6, $7, 0.0, 0, 0.0, 0.0, 0, 0, $8, $9, $10, $11)
         """,
             t.trip_id, t.vehicle_reg_no, t.imei,
             t.start_event_id, t.started_at, t.start_lat, t.start_lon,
             t.harsh_acceleration_count, t.harsh_braking_count, t.harsh_turning_count,
+            t.overspeeding_count,
         )
 
     async def update_open_trip(self, conn: asyncpg.Connection, trip: OpenTrip) -> None:
@@ -175,8 +179,9 @@ class TripRepository:
                 harsh_acceleration_count = $13,
                 harsh_braking_count    = $14,
                 harsh_turning_count    = $15,
+                overspeeding_count     = $16,
                 updated_at             = NOW()
-            WHERE id = $16
+            WHERE id = $17
         """,
             trip.last_event_at, trip.last_lat, trip.last_lon,
             trip.accumulated_distance_km, dur,
@@ -185,6 +190,7 @@ class TripRepository:
             round(trip.day_distance_km, 4), round(trip.night_distance_km, 4),
             int(trip.day_duration_seconds), int(trip.night_duration_seconds),
             trip.harsh_acceleration_count, trip.harsh_braking_count, trip.harsh_turning_count,
+            trip.overspeeding_count,
             trip.trip_id,
         )
 
@@ -208,8 +214,9 @@ class TripRepository:
                 harsh_acceleration_count = $14,
                 harsh_braking_count    = $15,
                 harsh_turning_count    = $16,
+                overspeeding_count     = $17,
                 updated_at             = NOW()
-            WHERE id = $17
+            WHERE id = $18
         """,
             action.end_event_id, action.ended_at,
             action.end_lat, action.end_lon,
@@ -218,6 +225,7 @@ class TripRepository:
             action.day_distance_km, action.night_distance_km,
             action.day_duration_seconds, action.night_duration_seconds,
             action.harsh_acceleration_count, action.harsh_braking_count, action.harsh_turning_count,
+            action.overspeeding_count,
             action.trip_id,
         )
 

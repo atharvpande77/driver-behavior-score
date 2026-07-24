@@ -51,13 +51,13 @@ class RCIngest:
         log_event(self.logger, "INFO", "vehicle.fetch.start", vehicle_number=vehicle_number, source_id=self.source_id)
         try:
             response = await self.client.post(
-                f"{app_settings.SUREPASS_BASE_URL}/rc/rc-v2",
+                f"{app_settings.effective_surepass_base_url}/rc/rc-v2",
                 data={
                     "id_number": vehicle_number,
                     "enrich": False
                 },
                 headers={
-                    "Authorization": app_settings.SUREPASS_API_KEY
+                    "Authorization": app_settings.effective_surepass_api_key
                 }
             )
             response.raise_for_status()

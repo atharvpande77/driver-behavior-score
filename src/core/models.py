@@ -473,6 +473,7 @@ class VehicleTrip(Base):
     harsh_acceleration_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     harsh_braking_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     harsh_turning_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    overspeeding_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 
     # Urban/Rural enrichment (Stage 2B) — NULL until enriched
     urban_distance_km: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)

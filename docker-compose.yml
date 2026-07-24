@@ -24,7 +24,7 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -37,8 +37,6 @@ services:
       dockerfile: Dockerfile
     container_name: dbs_backend
     restart: unless-stopped
-    env_file:
-      - .env
     ports:
       - "${APP_PORT}:8000"
     depends_on:
@@ -54,8 +52,6 @@ services:
       dockerfile: telematics/Dockerfile
     container_name: dbs_telematics
     restart: unless-stopped
-    env_file:
-      - .env
     ports:
       - "8002:8002"
     depends_on:
@@ -70,8 +66,6 @@ services:
       dockerfile: workers/Dockerfile
     container_name: dbs_workers
     restart: unless-stopped
-    env_file:
-      - .env
     depends_on:
       postgres:
         condition: service_healthy

@@ -287,6 +287,15 @@ class ChallanService:
         )
 
         try:
+            if app_settings.ENVIRONMENT == "staging":
+                log_event(
+                    self.logger,
+                    "WARNING",
+                    "challan.classify.staging_skip",
+                    offense_details=offense_details,
+                )
+                return self._thz_from_code(THZCategory.THZ_12)
+
             response = await self.openai_client.responses.create(
                 model=self.OPENAI_CLASSIFICATION_MODEL,
                 input=prompt,

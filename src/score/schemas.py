@@ -44,6 +44,6 @@ class DBSRecordResponse(BaseModel):
     
 class DBSWithPremiumResponse(BaseModel):
     dbs_stats:        DBSRecordResponse
-    base_premium:     int
-    adjusted_premium: int
+    base_premium:     int | None
+    adjusted_premium: int | None
     violations:       list[ChallanResponse]

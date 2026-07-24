@@ -16,6 +16,7 @@ from workers.trips.constants import (
     NIGHT_START_HOUR,
     ODOMETER_NOISE_THRESHOLD_KM,
     MAX_SPEED_THRESHOLD_KMPH,
+    OVERSPEEDING_PACKET_TYPE,
 )
 from workers.trips.utils import is_night, new_open_trip, segment_distance
 
@@ -91,6 +92,8 @@ class TripDetector:
             trip.harsh_braking_count += 1
         elif packet_type == "RT":
             trip.harsh_turning_count += 1
+        elif packet_type == OVERSPEEDING_PACKET_TYPE:
+            trip.overspeeding_count += 1
 
     @classmethod
     def _close_trip(
@@ -123,6 +126,7 @@ class TripDetector:
             harsh_acceleration_count=trip.harsh_acceleration_count,
             harsh_braking_count=trip.harsh_braking_count,
             harsh_turning_count=trip.harsh_turning_count,
+            overspeeding_count=trip.overspeeding_count,
         )
 
     @classmethod

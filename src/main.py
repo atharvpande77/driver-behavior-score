@@ -16,6 +16,7 @@ from src.violations.router import router as violations_router
 from src.vehicles.router import router as vehicles_router
 from src.dashboard.router import router as dashboard_router
 from src.auth.router import router as auth_router
+from src.telematics.router import router as telematics_router
 from src.core.rate_limit import limiter
 from src.core.config import app_settings
 from src.core.logging_utils import (
@@ -96,6 +97,7 @@ async def add_cache_control_headers(request: Request, call_next):
 app.include_router(score_router, prefix=f"{VERSIONED_BASE_PREFIX}/score")
 app.include_router(violations_router, prefix=f"{VERSIONED_BASE_PREFIX}/violations")
 app.include_router(vehicles_router, prefix=f"{VERSIONED_BASE_PREFIX}/vehicles")
+app.include_router(telematics_router, prefix="/telematics")
 app.include_router(auth_router, prefix="/auth")
 app.include_router(dashboard_router, prefix="/dashboard")
 app.include_router(usage_router, prefix="/dashboard/usage")
@@ -143,4 +145,4 @@ async def root():
 
 @app.get("/health", summary="Health Check", tags=["health"])
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "environment": app_settings.ENVIRONMENT}

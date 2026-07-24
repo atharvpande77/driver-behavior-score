@@ -1,0 +1,46 @@
+# docker-compose.prod.yml
+#
+# Production environment overlay.
+# Usage:
+#   docker compose \
+#     --env-file .env.prod \
+#     -f docker-compose.yml \
+#     -f docker-compose.prod.yml \
+#     up -d
+#
+# Key differences from dev:
+#   - Uses .env.prod for all services
+#   - ENVIRONMENT and DATABASE_URL are hard-pinned to prevent .env bleedthrough
+#   - Uses postgres_prod_data volume (separate from dev's postgres_data)
+#   - No command override — uses Dockerfile CMD (gunicorn)
+#   - No source volume mounts
+
+services:
+  postgres:
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql
+
+  backend:
+    env_file:
+      - path: .env.prod
+        required: true
+    environment:
+      ENVIRONMENT: production
+
+  telematics:
+    env_file:
+      - path: .env.prod
+        required: true
+    environment:
+      ENVIRONMENT: production
+
+  workers:
+    env_file:
+      - path: .env.prod
+        required: true
+    environment:
+      ENVIRONMENT: production
+
+volumes:
+  postgres_prod_data:
+    driver: local
