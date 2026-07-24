@@ -10,16 +10,12 @@
 #
 # Key differences from dev:
 #   - Uses .env.prod for all services
-#   - ENVIRONMENT and DATABASE_URL are hard-pinned to prevent .env bleedthrough
-#   - Uses postgres_prod_data volume (separate from dev's postgres_data)
+#   - ENVIRONMENT is hard-pinned to prevent .env bleedthrough
+#   - Inherits postgres_data volume from base (no volume override)
 #   - No command override — uses Dockerfile CMD (gunicorn)
 #   - No source volume mounts
 
 services:
-  postgres:
-    volumes:
-      - postgres_prod_data:/var/lib/postgresql
-
   backend:
     env_file:
       - path: .env.prod
