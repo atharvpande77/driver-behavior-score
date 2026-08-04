@@ -42,8 +42,6 @@ class DBSRecordResponse(BaseModel):
     last_violation_datetime: datetime | None
 
     
-class DBSWithPremiumResponse(BaseModel):
-    dbs_stats:        DBSRecordResponse
-    base_premium:     int | None
-    adjusted_premium: int | None
-    violations:       list[ChallanResponse]
+class DBSScoreResponse(BaseModel):
+    dbs_stats:  DBSRecordResponse
+    violations: list[ChallanResponse]
