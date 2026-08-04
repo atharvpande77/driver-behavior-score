@@ -1,29 +1,10 @@
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, field_validator
 from datetime import datetime
 
-from src.score.types import DBSWithPremium, DBSStats
-from src.core.utils import get_state_name, get_challan_paid_status, serialize_vehicle_number
+from src.score.types import DBSStats
+from src.core.utils import get_challan_paid_status, serialize_vehicle_number
 
 
-class VehicleResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    
-    vehicle_number: str
-    owner_name: str | None
-    category: str | None
-    category_description: str | None
-    state_code: str | None
-    state_name: str | None = None
-    fuel_type: str | None
-    cc: float | None = Field(default=None, validation_alias="cubic_capacity")
-
-    @model_serializer(mode="wrap")
-    def add_state_name(self, handler):
-        data = handler(self)
-        data["state_name"] = get_state_name(self.state_code)
-        return data
-    
-    
 class THZCategoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -74,10 +55,10 @@ class ChallanListResponse(BaseModel):
 
 class VehicleLookupResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     violations: list[ChallanListResponse]
-    dbs: DBSWithPremium | DBSStats
-    vehicle: VehicleResponse | None = None
+    dbs: DBSStats
+    vehicle_number: str | None = None
     fresh_as_of: datetime | None = None
     queried_at: datetime
 
@@ -106,8 +87,6 @@ class BatchVehicleLookupRequest(BaseModel):
 
 class BatchVehicleLookupItem(BaseModel):
     vehicle_number: str
-    category: str | None
-    category_description: str | None = None
     score: int
     risk_level: str
     premium_modifier_pct: int

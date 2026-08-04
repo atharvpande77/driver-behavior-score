@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request
 from src.auth.dependencies import verify_api_key
 from src.score.dependencies import get_score_service
 from src.score.service import ScoreService
-from src.score.schemas import DBSWithPremiumResponse
+from src.score.schemas import DBSScoreResponse
 from src.core.dependencies import ValidateVehicleNumber
 from src.core.dependencies import GetUsageRecorder
 from src.core.rate_limit import limiter, key_by_api_key_or_ip
@@ -18,11 +18,11 @@ router = APIRouter(
 
 @router.get(
     "/{vehicle_number}",
-    response_model=DBSWithPremiumResponse,
+    response_model=DBSScoreResponse,
     responses={
         200: {
-            "description": "Successful response containing vehicle score stats, premium adjustments, and traffic violations.",
-            "model": DBSWithPremiumResponse,
+            "description": "Successful response containing vehicle score stats and traffic violations.",
+            "model": DBSScoreResponse,
         },
         401: {
             "description": "Unauthorized - Missing, inactive, or invalid client API key.",

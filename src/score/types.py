@@ -35,11 +35,10 @@ class DBSStats:
     violation_counts: ViolationCounts = field(default_factory=ViolationCounts)
     
     
+
 @dataclass
-class DBSWithPremium:
+class DBSScoreResponse:
     dbs_stats:        DBSStats
-    base_premium:     int | None
-    adjusted_premium: int | None
     violations:       list[ChallanDTO] = field(default_factory=list)
 
 

@@ -1,22 +1,17 @@
 import asyncio
 from datetime import date, timedelta
 from src.score.repository import ScoreRepository
-from src.score.engine import ScoreEngine, PremiumEngine
-from src.score.types import DBSWithPremium, DBSStats, RiskLevel, ViolationCounts, DBSLookupResult
+from src.score.engine import ScoreEngine
+from src.score.types import DBSScoreResponse, DBSStats, RiskLevel, ViolationCounts, DBSLookupResult
 
 from src.violations.service import ChallanService
 from src.violations.constants import SCORING_WINDOW_DAYS
 from src.violations.types import ChallanDTO
-from src.vehicles.service import VehicleService
-from src.vehicles.types import VehicleDTO
-from src.core.models import DBSRecord, Vehicle
+from src.core.models import DBSRecord
 from src.core.logging_utils import get_logger, log_event
 from src.core.types import APINames, UsageStatsPerVehicle
 from src.dashboard.utils import get_risk_category
 from src.core.dependencies import UsageRecorder
-from src.core.database import async_session
-from src.vehicles.repository import VehicleRepository
-from src.vehicles.service import VehicleService as _VehicleService
 
 
 class ScoreService:
@@ -26,12 +21,10 @@ class ScoreService:
         repo: ScoreRepository,
         engine: ScoreEngine,
         challan_svc: ChallanService,
-        vehicle_svc: VehicleService
     ):
         self.repo = repo
         self.engine = engine
         self.challan_svc = challan_svc
-        self.vehicle_svc = vehicle_svc
         self.logger = get_logger(__name__)
 
 
@@ -130,56 +123,14 @@ class ScoreService:
             challans=active_challans,
         )
     
-    
-    async def get_dbs_with_premium(
-        self,
-        vehicle_number: str,
-        vehicle: Vehicle
-    ):
-        score_lookup = await self.get_dbs_record(vehicle_number)
-        score_record = self._to_dbs_stats(score_lookup.record)
-            
-        base_premium, dbs_adjusted_premium = PremiumEngine.compute(
-            score_record.premium_modifier_pct,
-            vehicle.category,
-            vehicle.cubic_capacity,
-            vehicle.fuel_type
-        )
-        
-        return DBSWithPremium(
-            dbs_stats=score_record,
-            base_premium=base_premium,
-            adjusted_premium=dbs_adjusted_premium
-        )
-        
         
     async def get_score_response(self, vehicle_number: str, usage: UsageRecorder | None = None):
-        async def _get_vehicle_isolated() -> VehicleDTO:
-            async with async_session() as session:
-                repo = VehicleRepository(session)
-                svc = _VehicleService(repo=repo, ingest=self.vehicle_svc.ingest)
-                return await svc.get_vehicle(vehicle_number)
-
-        vehicle, score_lookup = await asyncio.gather(
-            _get_vehicle_isolated(),
-            self.get_dbs_record(vehicle_number),
-        )
-
+        score_lookup = await self.get_dbs_record(vehicle_number)
         score_record = self._to_dbs_stats(score_lookup.record)
-
-        base_premium, adjusted_premium = PremiumEngine.compute(
-            score_record.premium_modifier_pct,
-            vehicle.category,
-            vehicle.cubic_capacity,
-            vehicle.fuel_type,
-        )
-
         violations = score_lookup.challans
 
-        response = DBSWithPremium(
+        response = DBSScoreResponse(
             dbs_stats=score_record,
-            base_premium=base_premium,
-            adjusted_premium=adjusted_premium,
             violations=violations,
         )
 
@@ -188,15 +139,12 @@ class ScoreService:
                 UsageStatsPerVehicle(
                     api_name=APINames.SCORE,
                     vehicle_number=vehicle_number,
-                    risk_category=get_risk_category(response),
+                    risk_category=get_risk_category(response.dbs_stats),
                     from_db_cache=score_lookup.from_db_cache,
                     challan_net_changes=score_lookup.challan_net_changes,
                     challan_fetch_failed=score_lookup.challan_fetch_failed,
                     challan_error_info=score_lookup.challan_error_info,
                     vendor_challan_latency_ms=score_lookup.vendor_challan_latency_ms,
-                    rc_fetch_failed=vehicle.rc_fetch_failed,
-                    rc_error_info=vehicle.rc_error_info,
-                    vendor_rc_latency_ms=vehicle.vendor_rc_latency_ms,
                 )
             ])
 
@@ -238,33 +186,18 @@ class ScoreService:
         return latest
         
 
-    # Use this
     async def compute_dbs_by_challans_and_vehicle(
         self,
         vehicle_number: str,
         *,
         sync_happened: bool,
         challans: list[ChallanDTO],
-        include_premium: bool = False,
-        vehicle: VehicleDTO | None = None,
     ):
         record = self._to_dbs_stats(
             await self._get_or_compute(sync_happened, vehicle_number, challans)
         )
-        
-        if not include_premium or not vehicle:
-            return record
 
-        
-        base_premium, adjusted_premium = PremiumEngine.compute(
-            record.premium_modifier_pct,
-            vehicle.category,
-            vehicle.cubic_capacity,
-            vehicle.fuel_type,
-        )
-
-        return DBSWithPremium(
+        return DBSScoreResponse(
             dbs_stats=record,
-            base_premium=base_premium,
-            adjusted_premium=adjusted_premium
+            violations=challans,
         )
