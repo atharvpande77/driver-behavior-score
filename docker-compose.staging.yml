@@ -44,6 +44,8 @@ services:
       - full  # not started unless --profile full is passed
     env_file:
       - .env.staging
+    ports: !override
+      - "127.0.0.1:18002:8002"
 
   workers:
     container_name: dbs_staging_workers
