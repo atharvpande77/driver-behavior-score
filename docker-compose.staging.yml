@@ -28,7 +28,7 @@ services:
     env_file:
       - .env.staging
     ports: !override
-      - "${STAGING_APP_PORT:-8001}:8000"
+      - "127.0.0.1:${STAGING_APP_PORT:-8001}:8000"
     environment:
       ENVIRONMENT: staging
       # Pinned here so it can never be shadowed by the base .env file.
