@@ -29,6 +29,8 @@ services:
         required: true
     environment:
       ENVIRONMENT: production
+    ports: !override
+      - "127.0.0.1:18002:8002"
 
   workers:
     env_file:
